@@ -1,0 +1,11 @@
+pandas
+numpy
+scikit-learn
+sentence-transformers
+pymilvus
+fastapi
+uvicorn
+pydantic
+openai
+psutil
+nvidia-ml-py3

@@ -1,0 +1,48 @@
+{
+  "data": {
+    "input_csv": "data/input.csv",
+    "text_columns": ["question", "answer"],
+    "id_column": "id"
+  },
+  "clustering": {
+    "n_clusters": 10,
+    "batch_size": 5000,
+    "max_iter": 50,
+    "random_state": 42
+  },
+  "qwen": {
+    "api_key": "sk-79959346b3674d788c6d5ac43f4eb905",
+    "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+    "model": "qwen-turbo",
+    "max_retries": 3,
+    "timeout": 30
+  },
+  "clip": {
+    "model_name": "clip-ViT-B-32-multilingual-v1",
+    "batch_size": 128,
+    "device": "cuda"
+  },
+  "milvus": {
+    "host": "milvus-standalone",
+    "port": 19530,
+    "collection_name": "multilingual_vectors",
+    "dimension": 512,
+    "index_type": "IVF_FLAT",
+    "metric_type": "COSINE",
+    "nlist": 2024
+  },
+  "service": {
+    "host": "0.0.0.0",
+    "port": 8000,
+    "top_k": 10
+  },
+  "performance": {
+    "enable_metrics": true,
+    "gpu_sample_interval": 1.0,
+    "report_format": ["json", "html"]
+  },
+  "logging": {
+    "level": "INFO",
+    "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  }
+}

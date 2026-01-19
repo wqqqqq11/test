@@ -28,6 +28,11 @@ class MilvusStore:
             FieldSchema(name="cluster_id", dtype=DataType.INT64),
             FieldSchema(name="cluster_label", dtype=DataType.VARCHAR, max_length=512),
             FieldSchema(name="text", dtype=DataType.VARCHAR, max_length=65535),
+            FieldSchema(name="service_name", dtype=DataType.VARCHAR, max_length=256),
+            FieldSchema(name="user_name", dtype=DataType.VARCHAR, max_length=256),
+            FieldSchema(name="question_time", dtype=DataType.VARCHAR, max_length=64),
+            FieldSchema(name="data", dtype=DataType.VARCHAR, max_length=64),
+            FieldSchema(name="image_url", dtype=DataType.VARCHAR, max_length=2048),
             FieldSchema(name="vector", dtype=DataType.FLOAT_VECTOR, dim=self.config['dimension'])
         ]
         
@@ -49,6 +54,11 @@ class MilvusStore:
                 [item['cluster_id'] for item in batch],
                 [item['cluster_label'] for item in batch],
                 [item['text'] for item in batch],
+                [item.get('service_name', '') for item in batch],
+                [item.get('user_name', '') for item in batch],
+                [item.get('question_time', '') for item in batch],
+                [item.get('data', '') for item in batch],
+                [item.get('image_url', '') for item in batch],
                 [item['vector'].tolist() for item in batch]
             ]
             self.collection.insert(entities)
@@ -58,14 +68,15 @@ class MilvusStore:
         self.collection.load()
     
     def search(self, query_vector: np.ndarray, top_k: int = 10) -> List[Dict[str, Any]]:
-        search_params = {"metric_type": self.config['metric_type'], "params": {"nprobe": 10}}
+        nprobe = self.config.get('nprobe', 64)
+        search_params = {"metric_type": self.config['metric_type'], "params": {"nprobe": nprobe}}
         
         results = self.collection.search(
             data=[query_vector.tolist()],
             anns_field="vector",
             param=search_params,
             limit=top_k,
-            output_fields=["id", "cluster_id", "cluster_label", "text"]
+            output_fields=["id", "cluster_id", "cluster_label", "text", "service_name", "user_name", "question_time", "data", "image_url"]
         )
         
         output = []
@@ -76,6 +87,11 @@ class MilvusStore:
                     "cluster_id": hit.entity.get('cluster_id'),
                     "cluster_label": hit.entity.get('cluster_label'),
                     "text": hit.entity.get('text'),
+                    "service_name": hit.entity.get('service_name', ''),
+                    "user_name": hit.entity.get('user_name', ''),
+                    "question_time": hit.entity.get('question_time', ''),
+                    "data": hit.entity.get('data', ''),
+                    "image_url": hit.entity.get('image_url', ''),
                     "score": float(hit.score)
                 })
         

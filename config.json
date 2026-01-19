@@ -2,10 +2,10 @@
   "data": {
     "input_csv": "data/input.csv",
     "text_columns": ["question", "answer"],
-    "id_column": "id"
+    "id_column": "ID"
   },
   "clustering": {
-    "n_clusters": 10,
+    "n_clusters": 30,
     "batch_size": 5000,
     "max_iter": 50,
     "random_state": 42
@@ -18,7 +18,7 @@
     "timeout": 30
   },
   "clip": {
-    "model_name": "clip-ViT-B-32-multilingual-v1",
+    "model_name": "paraphrase-multilingual-MiniLM-L12-v2",
     "batch_size": 128,
     "device": "cuda"
   },
@@ -26,10 +26,11 @@
     "host": "milvus-standalone",
     "port": 19530,
     "collection_name": "multilingual_vectors",
-    "dimension": 512,
+    "dimension": 384,
     "index_type": "IVF_FLAT",
     "metric_type": "COSINE",
-    "nlist": 2024
+    "nlist": 1024,
+    "nprobe": 64
   },
   "service": {
     "host": "0.0.0.0",

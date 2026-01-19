@@ -92,11 +92,17 @@ class Pipeline:
         
         data = []
         for i, record in enumerate(records):
+            raw_data = record.get('raw', {})
             data.append({
                 'id': str(record['id']),
                 'cluster_id': int(clusters[i]),
                 'cluster_label': cluster_labels[int(clusters[i])],
                 'text': record['text'][:65000],
+                'service_name': str(raw_data.get('service_name', ''))[:256],
+                'user_name': str(raw_data.get('user_name', ''))[:256],
+                'question_time': str(raw_data.get('question_time', ''))[:64],
+                'data': str(raw_data.get('data', ''))[:64],
+                'image_url': str(raw_data.get('image_url', ''))[:2048],
                 'vector': vectors[i]
             })
         

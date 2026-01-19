@@ -5,7 +5,7 @@ import uvicorn
 from .common import load_config, setup_logger
 from .models import CLIPEmbedder
 from .milvus_store import MilvusStore
-from pymilvus import Collection
+from pymilvus import utility
 
 app = FastAPI(title="多语种向量检索服务")
 
@@ -30,8 +30,8 @@ class QueryResponse(BaseModel):
 async def startup():
     logger.info("启动服务")
     store.connect()
-    # store.collection = store.Collection(config['milvus']['collection_name'])
-    store.collection = Collection(config['milvus']['collection_name'])
+    # 确保集合存在（如果不存在则创建空集合）
+    store.create_collection(drop_existing=False)
     store.load()
     logger.info("Milvus连接成功")
 

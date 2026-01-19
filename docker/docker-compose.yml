@@ -58,6 +58,7 @@ services:
     volumes:
       - ../:/app
       - ../outputs:/app/outputs
+      - model_cache:/root/.cache  # 持久化模型缓存
     depends_on:
       - milvus-standalone
     networks:
@@ -71,6 +72,8 @@ services:
               capabilities: [gpu]
     environment:
       - NVIDIA_VISIBLE_DEVICES=all
+      - TRANSFORMERS_CACHE=/root/.cache/huggingface  # 明确指定缓存路径
+      - HF_HOME=/root/.cache/huggingface
 
   service:
     build:
@@ -82,6 +85,7 @@ services:
       - "8000:8000"
     volumes:
       - ../:/app
+      - model_cache:/root/.cache  # 持久化模型缓存
     depends_on:
       - milvus-standalone
     networks:
@@ -93,11 +97,15 @@ services:
             - driver: nvidia
               count: 1
               capabilities: [gpu]
+    environment:
+      - TRANSFORMERS_CACHE=/root/.cache/huggingface  # 明确指定缓存路径
+      - HF_HOME=/root/.cache/huggingface
 
 volumes:
   etcd_data:
   minio_data:
   milvus_data:
+  model_cache:  # 模型缓存volume，持久化保存下载的模型
 
 networks:
   milvus:

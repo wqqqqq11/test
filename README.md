@@ -73,6 +73,7 @@ docker-compose up -d
 ### 4. 运行数据处理
 
 ```bash
+运行这个
 docker-compose run app python3 -m src.pipeline
 ```
 

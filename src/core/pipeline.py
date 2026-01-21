@@ -1,11 +1,11 @@
 import numpy as np
 from sklearn.cluster import MiniBatchKMeans
 from typing import Dict, List, Any
-from .common import load_config, setup_logger
-from .io_utils import DataLoader
-from .models import CLIPEmbedder, QwenLabeler
-from .milvus_store import MilvusStore
-from .metrics import MetricsCollector
+from ..utils.common import load_config, setup_logger
+from ..utils.io_utils import DataLoader
+from ..models.models import CLIPEmbedder, QwenLabeler
+from ..repositories.milvus_store import MilvusStore
+from ..utils.metrics import MetricsCollector
 
 
 class Pipeline:

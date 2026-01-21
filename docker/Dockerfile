@@ -26,4 +26,5 @@ ENV TRANSFORMERS_CACHE=/root/.cache/huggingface
 ENV HF_HOME=/root/.cache/huggingface
 ENV SENTENCE_TRANSFORMERS_HOME=/root/.cache/torch/sentence_transformers
 
-CMD ["python3", "-m", "src.pipeline"]
+# CMD ["python3", "-m", "src.pipeline"]
+CMD ["python3", "-m", "src.core.pipeline"]

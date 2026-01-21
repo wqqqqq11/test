@@ -80,7 +80,8 @@ services:
       context: ..
       dockerfile: docker/Dockerfile
     container_name: multilingual-service
-    command: ["python3", "-m", "src.service"]
+    # command: ["python3", "-m", "src.service"]
+    command: ["python3", "-m", "src.services.service"]
     ports:
       - "8000:8000"
     volumes:

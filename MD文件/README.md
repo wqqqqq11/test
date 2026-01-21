@@ -74,7 +74,7 @@ docker-compose up -d
 
 ```bash
 运行这个
-docker-compose run app python3 -m src.pipeline
+docker-compose run app python3 -m src.core.pipeline
 ```
 
 ### 5. 启动检索服务
@@ -207,3 +207,8 @@ docker-compose logs milvus-standalone
 
 MIT License
 
+git add .
+git commit -m ""
+git push -u origin master:main
+
+git log --oneline

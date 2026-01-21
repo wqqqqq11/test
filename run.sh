@@ -28,11 +28,13 @@ case "$1" in
         ;;
     pipeline)
         echo "运行数据处理流程..."
-        cd docker && docker-compose run --rm app python3 -m src.pipeline
+        # cd docker && docker-compose run --rm app python3 -m src.pipeline
+        cd docker && docker-compose run --rm app python3 -m src.core.pipeline
         ;;
     service)
         echo "启动检索服务..."
-        cd docker && docker-compose up -d service
+        # cd docker && docker-compose up -d service
+        command: ["python3", "-m", "src.services.service"]
         echo "服务已启动: http://localhost:8000"
         ;;
     stop)

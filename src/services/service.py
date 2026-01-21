@@ -2,9 +2,9 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from typing import List, Dict, Any
 import uvicorn
-from .common import load_config, setup_logger
-from .models import CLIPEmbedder
-from .milvus_store import MilvusStore
+from ..utils.common import load_config, setup_logger
+from ..models.models import CLIPEmbedder
+from ..repositories.milvus_store import MilvusStore
 from pymilvus import utility
 
 app = FastAPI(title="多语种向量检索服务")

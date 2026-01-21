@@ -3,6 +3,7 @@ from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
 import uvicorn
 import os
+from datetime import datetime
 from ..utils.common import load_config, setup_logger
 from ..models.models import CLIPEmbedder
 from ..repositories.milvus_store import MilvusStore
@@ -23,10 +24,18 @@ class QueryRequest(BaseModel):
     top_k: int = 10
 
 
+class QueryResultItem(BaseModel):
+    similarity_score: float
+    question: str
+    answer: str
+
+class CategoryItem(BaseModel):
+    category_name: str
+    items: List[QueryResultItem]
+
 class QueryResponse(BaseModel):
-    results: List[Dict[str, Any]]
-    query: str
-    total: int
+    search_info: Dict[str, Any]
+    categories: List[CategoryItem]
 
 
 class ProcessFilesRequest(BaseModel):
@@ -74,10 +83,42 @@ async def query(request: QueryRequest):
             top_k=min(request.top_k, 100)
         )
         
+        # 按类别分组结果
+        category_dict = {}
+        for result in results:
+            cluster_label = result.get('cluster_label', '未分类')
+            
+            # 将相似度分数转换为百分比格式
+            similarity_score = round(result['score'] * 100, 2)
+            
+            query_item = QueryResultItem(
+                similarity_score=similarity_score,
+                question=result.get('question', ''),
+                answer=result.get('answer', '')
+            )
+            
+            if cluster_label not in category_dict:
+                category_dict[cluster_label] = []
+            category_dict[cluster_label].append(query_item)
+        
+        # 转换为数组格式
+        categories = []
+        for category_name, items in category_dict.items():
+            categories.append(CategoryItem(
+                category_name=category_name,
+                items=items
+            ))
+        
+        # 构建搜索信息
+        search_info = {
+            "query": request.query,
+            "timestamp": datetime.now().isoformat(),
+            "total_results": len(results)
+        }
+        
         return QueryResponse(
-            results=results,
-            query=request.query,
-            total=len(results)
+            search_info=search_info,
+            categories=categories
         )
     
     except Exception as e:
@@ -87,7 +128,7 @@ async def query(request: QueryRequest):
 
 @app.post("/process-files", response_model=ProcessFilesResponse)
 async def process_files(request: ProcessFilesRequest):
-    """处理文件并生成QA对数据集"""
+    """处理文件并生成QA对数据集（服务器）"""
     try:
         # 验证文件是否存在
         missing_files = [path for path in request.file_paths if not os.path.exists(path)]
@@ -133,7 +174,7 @@ async def process_uploaded_files(
     service_name: str = "",
     user_name: str = ""
 ):
-    """处理上传的文件并生成QA对数据集"""
+    """处理上传的文件并生成QA对数据集（本地）"""
     try:
         # 准备文件数据
         uploaded_files = []

@@ -229,7 +229,9 @@ class DocumentProcessor:
     def save_to_csv(self, qa_data: List[Dict[str, Any]], output_path: str = None) -> str:
         """将QA对数据保存为CSV文件"""
         if not output_path:
-            output_path = self.doc_config['output_csv']
+            # 基于当前时间戳生成唯一文件名
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            output_path = f"data/processed_qa_pairs_{timestamp}.csv"
         
         # 确保输出目录存在
         os.makedirs(os.path.dirname(output_path), exist_ok=True)

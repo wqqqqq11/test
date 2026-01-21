@@ -28,6 +28,8 @@ class MilvusStore:
             FieldSchema(name="cluster_id", dtype=DataType.INT64),
             FieldSchema(name="cluster_label", dtype=DataType.VARCHAR, max_length=512),
             FieldSchema(name="text", dtype=DataType.VARCHAR, max_length=65535),
+            FieldSchema(name="question", dtype=DataType.VARCHAR, max_length=32768),
+            FieldSchema(name="answer", dtype=DataType.VARCHAR, max_length=32768),
             FieldSchema(name="service_name", dtype=DataType.VARCHAR, max_length=256),
             FieldSchema(name="user_name", dtype=DataType.VARCHAR, max_length=256),
             FieldSchema(name="question_time", dtype=DataType.VARCHAR, max_length=64),
@@ -54,6 +56,8 @@ class MilvusStore:
                 [item['cluster_id'] for item in batch],
                 [item['cluster_label'] for item in batch],
                 [item['text'] for item in batch],
+                [item.get('question', '') for item in batch],
+                [item.get('answer', '') for item in batch],
                 [item.get('service_name', '') for item in batch],
                 [item.get('user_name', '') for item in batch],
                 [item.get('question_time', '') for item in batch],
@@ -76,7 +80,7 @@ class MilvusStore:
             anns_field="vector",
             param=search_params,
             limit=top_k,
-            output_fields=["id", "cluster_id", "cluster_label", "text", "service_name", "user_name", "question_time", "data", "image_url"]
+            output_fields=["id", "cluster_id", "cluster_label", "text", "question", "answer", "service_name", "user_name", "question_time", "data", "image_url"]
         )
         
         output = []
@@ -87,6 +91,8 @@ class MilvusStore:
                     "cluster_id": hit.entity.get('cluster_id'),
                     "cluster_label": hit.entity.get('cluster_label'),
                     "text": hit.entity.get('text'),
+                    "question": hit.entity.get('question', ''),
+                    "answer": hit.entity.get('answer', ''),
                     "service_name": hit.entity.get('service_name', ''),
                     "user_name": hit.entity.get('user_name', ''),
                     "question_time": hit.entity.get('question_time', ''),

@@ -98,6 +98,8 @@ class Pipeline:
                 'cluster_id': int(clusters[i]),
                 'cluster_label': cluster_labels[int(clusters[i])],
                 'text': record['text'][:65000],
+                'question': str(raw_data.get('question', ''))[:32000],
+                'answer': str(raw_data.get('answer', ''))[:32000],
                 'service_name': str(raw_data.get('service_name', ''))[:256],
                 'user_name': str(raw_data.get('user_name', ''))[:256],
                 'question_time': str(raw_data.get('question_time', ''))[:64],

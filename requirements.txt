@@ -9,3 +9,9 @@ pydantic
 openai
 psutil
 nvidia-ml-py3
+langchain-core
+langchain-text-splitters
+langchain-community
+unstructured
+python-multipart
+PyMuPDF

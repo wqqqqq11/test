@@ -39,8 +39,8 @@ venv/
 
 - models/
 + .cache/
-+ /models/           # 只忽略根目录的models文件夹
-+ *.model            # 忽略模型文件，但不忽略Python源码
++ /models/           
++ *.model           
 # 忽略 data 目录下的所有文件
 data/*
 # 但保留 data 目录本身（可选，如果需要保留空目录）

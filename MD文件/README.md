@@ -15,20 +15,32 @@
 
 ```
 test/
-├── outputs/              # 性能报表输出目录
-├── config.json          # 统一配置文件
-├── requirements.txt     # Python依赖
-├── src/
-│   ├── pipeline.py      # 主流程：聚类→标注→向量化→存储
-│   ├── service.py       # FastAPI检索服务
-│   ├── milvus_store.py  # Milvus数据库封装
-│   ├── models.py        # CLIP和Qwen模型封装
-│   ├── metrics.py       # 性能监控和报表生成
-│   ├── io_utils.py      # CSV数据加载和处理
-│   └── common.py        # 通用工具函数
-└── docker/
-    ├── Dockerfile
-    └── docker-compose.yml
+├── data/                # 数据存储目录
+│   ├── .gitkeep
+│   └── input.csv
+├── docker/              # Docker 部署配置
+│   ├── docker-compose.yml
+│   └── Dockerfile
+├── MD文件/              # Markdown 文档目录
+├── outputs/             # 输出文件目录
+├── src/                 # 核心源码目录
+│   ├── core/            # 核心逻辑层
+│       └── pipeline.py
+│   ├── models/          # 数据模型层
+│   │   └── models.py
+│   ├── repositories/    # 数据存储层
+│   │   └── milvus_store.py
+│   ├── services/        # 业务服务层
+│   │   └── service.py
+│   ├── utils/           # 工具模块
+│   │   ├── common.py
+│   │   ├── io_utils.py
+│   │   └── metrics.py
+│   └── __init__.py
+├── config.json          # 项目配置文件
+├── requirements.txt     # Python 依赖清单
+└── run.sh               # 项目启动脚本
+
 ```
 
 ## 环境要求
@@ -68,6 +80,7 @@ test/
 ```bash
 cd docker
 docker-compose up -d
+docker compose build service
 ```
 
 ### 4. 运行数据处理

@@ -13,9 +13,18 @@
   "qwen": {
     "api_key": "sk-79959346b3674d788c6d5ac43f4eb905",
     "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
-    "model": "qwen-turbo",
+    "model": "qwen3-30b-a3b-instruct-2507",
     "max_retries": 3,
     "timeout": 30
+  },
+  "document_processing": {
+    "chunk_size": 2000,
+    "chunk_overlap": 200,
+    "max_qa_pairs_per_chunk": 3,
+    "max_content_length": 4000,
+    "output_csv": "data/processed_qa_pairs.csv",
+    "temp_dir": "temp",
+    "supported_extensions": [".txt", ".pdf", ".docx", ".doc", ".md", ".html", ".csv", ".epub", ".ppt", ".pptx", ".odt", ".eml", ".enex"]
   },
   "clip": {
     "model_name": "paraphrase-multilingual-MiniLM-L12-v2",

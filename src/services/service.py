@@ -28,6 +28,7 @@ class QueryResultItem(BaseModel):
     similarity_score: float
     question: str
     answer: str
+    image_url: str
 
 class CategoryItem(BaseModel):
     category_name: str
@@ -94,7 +95,8 @@ async def query(request: QueryRequest):
             query_item = QueryResultItem(
                 similarity_score=similarity_score,
                 question=result.get('question', ''),
-                answer=result.get('answer', '')
+                answer=result.get('answer', ''),
+                image_url=result.get('image_url', '')
             )
             
             if cluster_label not in category_dict:

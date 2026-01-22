@@ -86,7 +86,7 @@ docker compose build service
 ### 4. 运行数据处理
 
 ```bash
-运行这个
+# 数据向量化并且入库
 docker-compose run app python3 -m src.core.pipeline
 ```
 

@@ -1,6 +1,6 @@
 {
   "data": {
-    "input_csv": "data/input.csv",
+    "input_csv": "data/raw_qa.csv",
     "text_columns": ["question", "answer"],
     "id_column": "ID"
   },

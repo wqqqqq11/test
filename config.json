@@ -18,13 +18,15 @@
     "timeout": 30
   },
   "document_processing": {
-    "chunk_size": 2000,
-    "chunk_overlap": 200,
+    "chunk_size": 500,
+    "chunk_overlap": 50,
     "max_qa_pairs_per_chunk": 3,
     "max_content_length": 4000,
     "output_csv": "data/processed_qa_pairs.csv",
     "temp_dir": "temp",
-    "supported_extensions": [".txt", ".pdf", ".docx", ".doc", ".md", ".html", ".csv", ".epub", ".ppt", ".pptx", ".odt", ".eml", ".enex"]
+    "supported_extensions": [".txt", ".pdf", ".docx", ".doc", ".md", ".html", ".csv", ".epub", ".ppt", ".pptx", ".odt", ".eml", ".enex"],
+    "enable_qa_validation": true,
+    "validation_batch_size": 10
   },
   "clip": {
     "model_name": "paraphrase-multilingual-MiniLM-L12-v2",

@@ -96,6 +96,16 @@ docker-compose run app python3 -m src.core.pipeline
 docker-compose up service
 ```
 
+```bash
+# 新建环境
+docker compose build
+```
+
+```bash
+# 执行会话问答对生成管道
+docker-compose run app python3 -m src.main_conversation_processor
+```
+
 ## API使用
 
 ### 健康检查
@@ -119,17 +129,30 @@ curl -X POST http://localhost:8000/query \
 
 ```json
 {
-  "results": [
-    {
-      "id": "123",
-      "cluster_id": 2,
-      "cluster_label": "技术文档",
-      "text": "文本内容...",
-      "score": 0.95
-    }
-  ],
-  "query": "搜索文本",
-  "total": 10
+    "search_info": {
+        "query": "你这手机多少钱",
+        "timestamp": "2026-01-22T01:28:26.966896",
+        "total_results": 2
+    },
+    "categories": [
+        {
+            "category_name": "自有定制",
+            "items": [
+                {
+                    "similarity_score": 92.53,
+                    "question": "这个手机价格多少钱？",
+                    "answer": "哪一款呢亲爱哒~\n112800元的哦",
+                    "image_url": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTF1YnofNuzfXwQ388M9lspgGnQ3glMv-hVMaooTV4VYmgthwpiJTVm8ZW-6IckACV4EyC6081&s"
+                },
+                {
+                    "similarity_score": 92.42,
+                    "question": "赠送多少钱的手机？",
+                    "answer": "这款售价是25800的呢\n是的",
+                    "image_url": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTF1YnofNuzfXwQ388M9lspgGnQ3glMv-hVMaooTV4VYmgthwpiJTVm8ZW-6IckACV4EyC6195&s"
+                }
+            ]
+        }
+    ]
 }
 ```
 

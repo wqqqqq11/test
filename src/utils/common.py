@@ -43,3 +43,30 @@ def ensure_dir(path: str) -> Path:
     p = Path(path)
     p.mkdir(parents=True, exist_ok=True)
     return p
+
+
+def setup_logging(level: str = "INFO", format_str: str = None) -> None:
+    """
+    设置全局日志配置
+    
+    Args:
+        level: 日志级别
+        format_str: 日志格式字符串
+    """
+    if format_str is None:
+        format_str = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    
+    logging.basicConfig(
+        level=getattr(logging, level.upper()),
+        format=format_str,
+        handlers=[
+            logging.StreamHandler(),
+        ]
+    )
+    
+    # 设置第三方库的日志级别
+    logging.getLogger("pymilvus").setLevel(logging.WARNING)
+    logging.getLogger("sentence_transformers").setLevel(logging.WARNING)
+    logging.getLogger("transformers").setLevel(logging.WARNING)
+    logging.getLogger("torch").setLevel(logging.WARNING)
+    logging.getLogger("aiohttp").setLevel(logging.WARNING)

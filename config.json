@@ -54,5 +54,30 @@
   "logging": {
     "level": "INFO",
     "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  },
+  "conversation_processing": {
+    "input_file": "data/jingdong.json",
+    "output_csv": "data/processed_conversations.csv",
+    "sliding_window_size": 5,
+    "vector_search_top_k": 5,
+    "csv_fields": {
+      "id_field": "ID",
+      "service_name_field": "service_name",
+      "user_name_field": "user_name", 
+      "question_time_field": "question_time",
+      "date_field": "data",
+      "question_field": "question",
+      "answer_field": "answer",
+      "image_url_field": "image_url"
+    },
+    "llm_prompts": {
+      "semantic_validation": "请判断以下客服回复是否具有实际意义和价值。有意义的回复应该包含具体信息、解答问题或提供帮助，而不是纯语气词、无实际信息或乱码符号。请只回答'有意义'或'无意义'。\n\n客服回复：{content}",
+      "relevance_check": "请判断以下客户问题是否与给定的客服回答相关。相关的问题应该是客服回答所要解决或回应的问题。请只回答'相关'或'不相关'。\n\n客户问题：{question}\n客服回答：{answer}",
+      "question_fusion": "请将以下多个相关的客户问题融合成一个语境一致、可独立理解的标准化问题。融合后的问题应该完整表达客户的意图，避免指代不明。\n\n客户问题列表：\n{questions}\n\n请直接输出融合后的问题，不要包含其他解释："
+    },
+    "api_endpoints": {
+      "intent_rewrite_url": "http://localhost:8001/intent_rewrite",
+      "answer_polish_url": "http://192.168.151.84:8010/api/v1/answer/enhance"
+    }
   }
 }

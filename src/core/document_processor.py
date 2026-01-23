@@ -81,17 +81,30 @@ class DocumentProcessor:
         chunk_text = text_chunk.page_content if hasattr(text_chunk, 'page_content') else str(text_chunk)
         
         max_pairs = self.doc_config['max_qa_pairs_per_chunk']
-        prompt = f"""基于以下文本生成最多{max_pairs}个问答对。要求：
-                    1. 最多生成{max_pairs}个不同表述的问题，涵盖文本的关键信息
-                    2. 基于文本提供准确、全面的答案
-                    3. 格式：每个问答对使用 Q: [问题] A: [答案] 格式，多个问答对之间用空行分隔
-                    4. 只输出Q和A的内容，不要添加"问题:"、"答案:"等标签
-                    5. 如果文本内容较少，可以只生成1-2个问答对
+        prompt = f"""你是一名专业的问答数据构建助手，擅长从非结构化文本中抽取关键信息并生成高质量问答对。
 
-                    文本：
-                    {chunk_text}
+任务说明：
+请基于下方提供的文本内容，生成不超过 {max_pairs} 个问答对，用于知识问答或模型训练。
 
-                    生成问答对（最多{max_pairs}个）："""
+生成要求：
+1. 问题需使用不同表述方式，覆盖文本中的关键信息（如产品功能、特点、用途、规格、优势、限制等）
+2. 每个答案必须严格基于原文内容，准确、完整，不得引入原文中未提及的信息
+3. 问题应清晰、自然，答案应简洁但信息充分
+4. 如果文本信息较少或高度重复，可只生成 1–2 个高质量问答对
+5. 不要对文本内容进行总结或改写，只生成问答对
+
+输出格式要求：
+- 每个问答对使用以下格式：
+  Q: 问题
+  A: 答案
+- 问答对之间使用一个空行分隔
+- 只输出 Q 和 A 的内容，不要添加编号、标题或任何额外说明
+
+文本内容：
+{chunk_text}
+
+请生成问答对（最多 {max_pairs} 个）：
+"""
 
         try:
             response = self.client.chat.completions.create(
@@ -171,6 +184,8 @@ class DocumentProcessor:
                     }
                     all_qa_data.append(qa_data)
                     qa_id += 1
+                if qa_id == 3:
+                    break
             
             self.logger.info(f"为文档 {file_path} 生成了 {len(all_qa_data)} 个QA对")
             return all_qa_data

@@ -74,6 +74,8 @@ services:
       - NVIDIA_VISIBLE_DEVICES=all
       - TRANSFORMERS_CACHE=/root/.cache/huggingface  # 明确指定缓存路径
       - HF_HOME=/root/.cache/huggingface
+      - HF_ENDPOINT=https://hf-mirror.com  # 使用国内镜像源
+      - SENTENCE_TRANSFORMERS_HOME=/root/.cache/torch/sentence_transformers
 
   service:
     build:
@@ -101,6 +103,8 @@ services:
     environment:
       - TRANSFORMERS_CACHE=/root/.cache/huggingface  # 明确指定缓存路径
       - HF_HOME=/root/.cache/huggingface
+      - HF_ENDPOINT=https://hf-mirror.com  # 使用国内镜像源
+      - SENTENCE_TRANSFORMERS_HOME=/root/.cache/torch/sentence_transformers
 
 volumes:
   etcd_data:

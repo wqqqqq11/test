@@ -1,12 +1,20 @@
 from pymilvus import connections, Collection, FieldSchema, CollectionSchema, DataType, utility
 import numpy as np
-from typing import Dict, List, Any, Tuple
+import logging
+from typing import Dict, List, Any, Tuple, Optional
+from sentence_transformers import SentenceTransformer
 
 
 class MilvusStore:
     def __init__(self, config: Dict[str, Any]):
         self.config = config['milvus']
+        self.clip_config = config['clip']
         self.collection = None
+        self.logger = logging.getLogger(__name__)
+        
+        # 初始化文本编码器
+        self.encoder = SentenceTransformer(self.clip_config['model_name'])
+        self.encoder.to(self.clip_config.get('device', 'cpu'))
     
     def connect(self):
         connections.connect(
@@ -102,6 +110,76 @@ class MilvusStore:
                 })
         
         return output
+    
+    async def search_by_text(self, query_text: str, top_k: int = 10) -> List[Dict[str, Any]]:
+        """
+        根据文本查询向量数据库
+        
+        Args:
+            query_text: 查询文本
+            top_k: 返回结果数量
+            
+        Returns:
+            搜索结果列表
+        """
+        try:
+            # 文本编码为向量
+            query_vector = self.encoder.encode([query_text])[0]
+            
+            # 执行向量搜索
+            results = self.search(query_vector, top_k)
+            
+            self.logger.debug(f"文本搜索完成，查询: {query_text[:50]}..., 结果数: {len(results)}")
+            return results
+            
+        except Exception as e:
+            self.logger.error(f"文本搜索失败: {e}")
+            return []
+    
+    def encode_text(self, text: str) -> np.ndarray:
+        """
+        将文本编码为向量
+        
+        Args:
+            text: 输入文本
+            
+        Returns:
+            向量数组
+        """
+        return self.encoder.encode([text])[0]
+    
+    def batch_encode_texts(self, texts: List[str]) -> np.ndarray:
+        """
+        批量编码文本为向量
+        
+        Args:
+            texts: 文本列表
+            
+        Returns:
+            向量数组
+        """
+        return self.encoder.encode(texts)
+    
+    def get_collection_stats(self) -> Dict[str, Any]:
+        """
+        获取集合统计信息
+        
+        Returns:
+            统计信息字典
+        """
+        if not self.collection:
+            return {}
+        
+        try:
+            stats = self.collection.num_entities
+            return {
+                "total_entities": stats,
+                "collection_name": self.config['collection_name'],
+                "dimension": self.config['dimension']
+            }
+        except Exception as e:
+            self.logger.error(f"获取集合统计信息失败: {e}")
+            return {}
     
     def disconnect(self):
         connections.disconnect(alias="default")

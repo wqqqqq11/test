@@ -1,0 +1,191 @@
+{
+  "timestamp": "20260119_082854",
+  "stages": {
+    "数据加载": {
+      "duration_seconds": 0.5474703311920166,
+      "start_metrics": {
+        "cpu_percent": 0.6,
+        "memory_percent": 13.9,
+        "memory_used_mb": 2184.62109375,
+        "gpus": [
+          {
+            "device_id": 0,
+            "memory_used_mb": 1836.01171875,
+            "memory_total_mb": 8188.0,
+            "memory_percent": 22.423201254885196,
+            "gpu_util_percent": 7
+          }
+        ]
+      },
+      "end_metrics": {
+        "cpu_percent": 0.0,
+        "memory_percent": 14.0,
+        "memory_used_mb": 2197.69140625,
+        "gpus": [
+          {
+            "device_id": 0,
+            "memory_used_mb": 1836.01171875,
+            "memory_total_mb": 8188.0,
+            "memory_percent": 22.423201254885196,
+            "gpu_util_percent": 0
+          }
+        ]
+      },
+      "timestamp": "2026-01-19T08:28:10.720519"
+    },
+    "聚类分析": {
+      "duration_seconds": 13.4524245262146,
+      "start_metrics": {
+        "cpu_percent": 0.0,
+        "memory_percent": 14.0,
+        "memory_used_mb": 2197.69140625,
+        "gpus": [
+          {
+            "device_id": 0,
+            "memory_used_mb": 1836.01171875,
+            "memory_total_mb": 8188.0,
+            "memory_percent": 22.423201254885196,
+            "gpu_util_percent": 0
+          }
+        ]
+      },
+      "end_metrics": {
+        "cpu_percent": 3.9,
+        "memory_percent": 15.9,
+        "memory_used_mb": 2498.5859375,
+        "gpus": [
+          {
+            "device_id": 0,
+            "memory_used_mb": 2090.01171875,
+            "memory_total_mb": 8188.0,
+            "memory_percent": 25.525301889960915,
+            "gpu_util_percent": 0
+          }
+        ]
+      },
+      "timestamp": "2026-01-19T08:28:24.275158"
+    },
+    "标签生成": {
+      "duration_seconds": 8.26846694946289,
+      "start_metrics": {
+        "cpu_percent": 0.6,
+        "memory_percent": 15.9,
+        "memory_used_mb": 2498.6953125,
+        "gpus": [
+          {
+            "device_id": 0,
+            "memory_used_mb": 2090.01171875,
+            "memory_total_mb": 8188.0,
+            "memory_percent": 25.525301889960915,
+            "gpu_util_percent": 0
+          }
+        ]
+      },
+      "end_metrics": {
+        "cpu_percent": 0.6,
+        "memory_percent": 15.9,
+        "memory_used_mb": 2508.42578125,
+        "gpus": [
+          {
+            "device_id": 0,
+            "memory_used_mb": 2090.01171875,
+            "memory_total_mb": 8188.0,
+            "memory_percent": 25.525301889960915,
+            "gpu_util_percent": 0
+          }
+        ]
+      },
+      "timestamp": "2026-01-19T08:28:32.645140"
+    },
+    "向量化": {
+      "duration_seconds": 13.019614934921265,
+      "start_metrics": {
+        "cpu_percent": 0.0,
+        "memory_percent": 15.9,
+        "memory_used_mb": 2508.42578125,
+        "gpus": [
+          {
+            "device_id": 0,
+            "memory_used_mb": 2090.01171875,
+            "memory_total_mb": 8188.0,
+            "memory_percent": 25.525301889960915,
+            "gpu_util_percent": 0
+          }
+        ]
+      },
+      "end_metrics": {
+        "cpu_percent": 0.0,
+        "memory_percent": 16.0,
+        "memory_used_mb": 2524.29296875,
+        "gpus": [
+          {
+            "device_id": 0,
+            "memory_used_mb": 2090.01171875,
+            "memory_total_mb": 8188.0,
+            "memory_percent": 25.525301889960915,
+            "gpu_util_percent": 57
+          }
+        ]
+      },
+      "timestamp": "2026-01-19T08:28:45.767558"
+    },
+    "数据存储": {
+      "duration_seconds": 8.84547758102417,
+      "start_metrics": {
+        "cpu_percent": 0.0,
+        "memory_percent": 16.0,
+        "memory_used_mb": 2524.046875,
+        "gpus": [
+          {
+            "device_id": 0,
+            "memory_used_mb": 2090.01171875,
+            "memory_total_mb": 8188.0,
+            "memory_percent": 25.525301889960915,
+            "gpu_util_percent": 57
+          }
+        ]
+      },
+      "end_metrics": {
+        "cpu_percent": 0.0,
+        "memory_percent": 17.1,
+        "memory_used_mb": 2697.52734375,
+        "gpus": [
+          {
+            "device_id": 0,
+            "memory_used_mb": 2090.01171875,
+            "memory_total_mb": 8188.0,
+            "memory_percent": 25.525301889960915,
+            "gpu_util_percent": 0
+          }
+        ]
+      },
+      "timestamp": "2026-01-19T08:28:54.715479"
+    }
+  },
+  "summary": {
+    "total_duration_seconds": 44.13345432281494,
+    "stage_count": 5,
+    "stages_breakdown": {
+      "数据加载": {
+        "duration_seconds": 0.5474703311920166,
+        "percentage": 1.2404882862500068
+      },
+      "聚类分析": {
+        "duration_seconds": 13.4524245262146,
+        "percentage": 30.48124089226418
+      },
+      "标签生成": {
+        "duration_seconds": 8.26846694946289,
+        "percentage": 18.73514565386847
+      },
+      "向量化": {
+        "duration_seconds": 13.019614934921265,
+        "percentage": 29.500557195657194
+      },
+      "数据存储": {
+        "duration_seconds": 8.84547758102417,
+        "percentage": 20.04256797196015
+      }
+    }
+  }
+}

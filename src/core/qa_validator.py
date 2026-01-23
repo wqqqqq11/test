@@ -6,6 +6,7 @@ from typing import List, Dict, Any, Tuple
 from openai import OpenAI
 
 from ..utils.common import setup_logger
+from ..prompts.prompts import QA_VALIDATION_PROMPT
 
 
 class QAValidator:
@@ -117,51 +118,7 @@ class QAValidator:
     
     def _build_validation_prompt(self, question: str, answer: str) -> str:
         """构建校验提示词"""
-        prompt = f"""你是一个专业的问答质量校验器。请评估以下问答对是否满足"指代明确"的要求。
-
-【校验标准】
-问答对必须满足以下条件才能通过校验：
-1. 问题中的主语/对象必须具体明确，不能使用需要依赖上下文才能理解的指代词
-2. 问题单独拿出来，任何人都能明确知道在问什么具体的产品/功能/概念
-3. 答案单独拿出来，也应该是完整的、指代明确的回答
-
-【重要】产品名称识别规则：
-- 专有名词（如品牌名、产品型号）应被视为明确指代，不是模糊指代
-- 例如：IRONFLIP、Agent Q、Signature V、VERTU、VAOS、AIGS等都是具体的产品/技术名称
-- 包含具体产品名的问答对应该通过校验
-
-【不合格的指代词示例】
-- 该产品、这个产品、本产品（除非同时包含具体产品名）
-- 该设备、这个设备、本设备  
-- 该系统、这个系统、本系统
-- 该功能、这个功能、本功能
-- 这个东西、那个东西
-- 它、它们、其
-- 上述、以上、前面提到的
-
-【合格示例】
-不合格：该产品的续航时间是多少？
-合格：IRONFLIP的续航时间是多少？
-合格：Signature V的续航时间是多少？
-合格：Agent Q支持哪些功能？
-
-不合格：这个功能如何使用？
-合格：AI翻译功能如何使用？
-合格：VAOS系统如何操作？
-
-【待校验的问答对】
-问题：{question}
-答案：{answer}
-
-【输出要求】
-请严格按照以下格式输出（只输出一行）：
-PASS 或 FAIL
-
-如果输出FAIL，请在后面简要说明原因（不超过20字）。
-
-【输出】"""
-        
-        return prompt
+        return QA_VALIDATION_PROMPT.format(question=question, answer=answer)
     
     def validate_qa_pair(self, question: str, answer: str) -> Tuple[bool, str]:
         """

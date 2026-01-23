@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>性能报表 - 20260119_083657</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
+        .container { max-width: 1200px; margin: 0 auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        h1 { color: #333; border-bottom: 3px solid #007bff; padding-bottom: 10px; }
+        h2 { color: #555; margin-top: 30px; }
+        table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background: #007bff; color: white; }
+        tr:hover { background: #f5f5f5; }
+        .metric { display: inline-block; margin: 10px 20px 10px 0; }
+        .metric-label { font-weight: bold; color: #666; }
+        .metric-value { color: #007bff; font-size: 1.1em; }
+        .stage-section { background: #f9f9f9; padding: 15px; margin: 15px 0; border-radius: 5px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>性能分析报表</h1>
+        <p>生成时间: 20260119_083657</p>
+        
+        <h2>总体概况</h2>
+        <div class="metric">
+            <span class="metric-label">总耗时:</span>
+            <span class="metric-value">35.08秒</span>
+        </div>
+        <div class="metric">
+            <span class="metric-label">阶段数:</span>
+            <span class="metric-value">5</span>
+        </div>
+        
+        <h2>各阶段详情</h2>
+        <table>
+            <tr>
+                <th>阶段</th>
+                <th>耗时(秒)</th>
+                <th>占比(%)</th>
+                <th>GPU利用率(%)</th>
+                <th>内存使用率(%)</th>
+            </tr>
+
+            <tr>
+                <td>数据加载</td>
+                <td>0.52</td>
+                <td>1.5</td>
+                <td>2.0</td>
+                <td>18.2</td>
+            </tr>
+
+            <tr>
+                <td>聚类分析</td>
+                <td>8.89</td>
+                <td>25.3</td>
+                <td>2.0</td>
+                <td>20.3</td>
+            </tr>
+
+            <tr>
+                <td>标签生成</td>
+                <td>9.67</td>
+                <td>27.5</td>
+                <td>0.0</td>
+                <td>20.3</td>
+            </tr>
+
+            <tr>
+                <td>向量化</td>
+                <td>8.13</td>
+                <td>23.2</td>
+                <td>91.0</td>
+                <td>20.3</td>
+            </tr>
+
+            <tr>
+                <td>数据存储</td>
+                <td>7.88</td>
+                <td>22.5</td>
+                <td>0.0</td>
+                <td>20.9</td>
+            </tr>
+
+        </table>
+    </div>
+</body>
+</html>

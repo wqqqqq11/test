@@ -47,3 +47,6 @@ data/*
 !data/.gitkeep
 
 *.bak
+
+temp/*
+!temp/.gitkeep

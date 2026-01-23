@@ -442,18 +442,13 @@ class DocumentProcessor:
     # 分割：PDF 先结构合并，保证跨页上下文；再 chunking
     # -----------------------------
     def split_documents(self, documents: List[Document], ext: str = "") -> List[Document]:
-        """
-        将文档分割成文本块
-        - PDF：先按标题/小节结构合并（跨页），再按 chunk_size 切片，并用 overlap 保持连续
-        - 非 PDF：直接按 chunk_size 切片
-        """
-        if ext == ".pdf":
-            documents = self.merge_pages_by_structure(
-                documents,
-                drop_toc_pages=True,
-                head_n=int(self.doc_config.get("header_lines", 3)),
-                tail_n=int(self.doc_config.get("footer_lines", 3)),
-            )
+        """将文档分割成文本块"""
+        documents = self.merge_pages_by_structure(
+            documents,
+            drop_toc_pages=True,
+            head_n=int(self.doc_config.get("header_lines", 3)),
+            tail_n=int(self.doc_config.get("footer_lines", 3)),
+        )
 
         text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=int(self.doc_config["chunk_size"]),

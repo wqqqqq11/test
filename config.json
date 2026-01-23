@@ -26,7 +26,22 @@
     "temp_dir": "temp",
     "supported_extensions": [".txt", ".pdf", ".docx", ".doc", ".md", ".html", ".csv", ".epub", ".ppt", ".pptx", ".odt", ".eml", ".enex"],
     "enable_qa_validation": true,
-    "validation_batch_size": 10
+    "validation_batch_size": 10,
+    "header_lines": 3,
+    "footer_lines": 3
+  },
+  "trace": {
+    "enable_tracing": true,
+    "trace_dir": "data/trace_data",
+    "sample_size": 5,
+    "stages": {
+      "raw_documents": true,
+      "cleaned_documents": true,
+      "merged_documents": true,
+      "text_chunks": true,
+      "generated_qa": true,
+      "validated_qa": true
+    }
   },
   "clip": {
     "model_name": "paraphrase-multilingual-MiniLM-L12-v2",

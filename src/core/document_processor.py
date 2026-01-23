@@ -25,6 +25,7 @@ from langchain_community.document_loaders import (
 
 from ..utils.common import setup_logger
 from .qa_validator import QAValidator
+from .data_tracer import DataTracer
 from ..prompts.prompts import SALES_QA_GENERATION_PROMPT
 
 
@@ -82,6 +83,9 @@ class DocumentProcessor:
 
         # 初始化QA校验器
         self.qa_validator = QAValidator(config)
+        
+        # 初始化数据追踪器
+        self.data_tracer = DataTracer(config)
 
         # 产品聚焦关键词（可在 config 里覆盖/扩展）
         default_keywords = [
@@ -148,7 +152,7 @@ class DocumentProcessor:
     # -----------------------------
     # 基础加载
     # -----------------------------
-    def load_document(self, file_path: str) -> List[Document]:
+    def load_document(self, file_path: str, display_name: str = "") -> List[Document]:
         """加载单个文档"""
         ext = "." + file_path.rsplit(".", 1)[-1].lower()
 
@@ -157,7 +161,13 @@ class DocumentProcessor:
 
         loader_class, loader_args = self.LOADER_MAPPING[ext]
         loader = loader_class(file_path, **loader_args)
-        return loader.load()
+        documents = loader.load()
+        
+        # 追踪原始文档数据
+        trace_name = display_name if display_name else file_path
+        self.data_tracer.trace_raw_documents(documents, trace_name)
+        
+        return documents
 
     # -----------------------------
     # 文本清洗/结构合并
@@ -442,20 +452,34 @@ class DocumentProcessor:
     # -----------------------------
     # 分割：PDF 先结构合并，保证跨页上下文；再 chunking
     # -----------------------------
-    def split_documents(self, documents: List[Document], ext: str = "") -> List[Document]:
+    def split_documents(self, documents: List[Document], ext: str = "", file_path: str = "") -> List[Document]:
         """将文档分割成文本块"""
-        documents = self.merge_pages_by_structure(
+        # 追踪清洗前的文档
+        if file_path:
+            self.data_tracer.trace_cleaned_documents(documents, file_path)
+        
+        merged_documents = self.merge_pages_by_structure(
             documents,
             drop_toc_pages=True,
             head_n=int(self.doc_config.get("header_lines", 3)),
             tail_n=int(self.doc_config.get("footer_lines", 3)),
         )
+        
+        # 追踪结构合并后的文档
+        if file_path:
+            self.data_tracer.trace_merged_documents(merged_documents, file_path)
 
         text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=int(self.doc_config["chunk_size"]),
             chunk_overlap=int(self.doc_config["chunk_overlap"]),
         )
-        return text_splitter.split_documents(documents)
+        text_chunks = text_splitter.split_documents(merged_documents)
+        
+        # 追踪文本分块数据
+        if file_path:
+            self.data_tracer.trace_text_chunks(text_chunks, file_path)
+        
+        return text_chunks
 
     # -----------------------------
     # 销售场景 QA 生成（强约束）
@@ -549,18 +573,25 @@ class DocumentProcessor:
         service_name: str = "",
         user_name: str = "",
         start_id: int = 1,
+        display_name: str = "",
+        manage_session: bool = True,
     ) -> List[Dict[str, Any]]:
         """处理单个文件并生成QA对数据"""
         try:
             ext = "." + file_path.rsplit(".", 1)[-1].lower()
+            trace_name = display_name if display_name else file_path
 
-            documents = self.load_document(file_path)
+            # 开始追踪会话（如果需要）
+            if manage_session:
+                self.data_tracer.start_session(f"process_file_{os.path.basename(trace_name)}")
+
+            documents = self.load_document(file_path, trace_name)
             if not documents:
                 self.logger.error(f"无法加载文档: {file_path}")
                 return []
 
             # PDF：先结构合并（跨页）再切 chunk；其他类型：直接切 chunk
-            text_chunks = self.split_documents(documents, ext=ext)
+            text_chunks = self.split_documents(documents, ext=ext, file_path=trace_name)
             self.logger.info(f"文档 {file_path} 已分割成 {len(text_chunks)} 个文本块")
 
             all_qa_data: List[Dict[str, Any]] = []
@@ -576,11 +607,17 @@ class DocumentProcessor:
                 if not qa_pairs:
                     continue
 
+                # 追踪生成的QA对数据
+                self.data_tracer.trace_generated_qa(qa_pairs, chunk.page_content, trace_name)
+
                 # 校验生成的QA对
                 validated_qa_pairs = self.qa_validator.validate_qa_batch(qa_pairs)
                 if not validated_qa_pairs:
                     self.logger.info(f"该文本块生成的所有QA对都未通过校验，跳过")
                     continue
+
+                # 追踪校验后的QA对数据
+                self.data_tracer.trace_validated_qa(qa_pairs, validated_qa_pairs, trace_name)
 
                 for qa_pair in validated_qa_pairs:
                     qa_data = {
@@ -599,10 +636,18 @@ class DocumentProcessor:
                 #     break
 
             self.logger.info(f"为文档 {file_path} 生成了 {len(all_qa_data)} 个QA对")
+            
+            # 结束追踪会话（如果需要）
+            if manage_session:
+                self.data_tracer.end_session()
+            
             return all_qa_data
 
         except Exception as e:
             self.logger.error(f"处理文件 {file_path} 时出错: {str(e)}")
+            # 确保在异常情况下也结束会话
+            if manage_session:
+                self.data_tracer.end_session()
             return []
 
     def process_files(self, file_paths: List[str], service_name: str = "", user_name: str = "") -> List[Dict[str, Any]]:
@@ -631,26 +676,34 @@ class DocumentProcessor:
         all_qa_data: List[Dict[str, Any]] = []
         current_id = 1
 
-        for file_info in uploaded_files:
-            file_name = file_info["name"]
-            file_content = file_info["content"]
+        # 开始批量处理追踪会话
+        self.data_tracer.start_session("process_uploaded_files_batch")
 
-            ext = os.path.splitext(file_name)[1].lower()
-            if ext not in self.doc_config["supported_extensions"]:
-                self.logger.warning(f"不支持的文件类型: {file_name}")
-                continue
+        try:
+            for file_info in uploaded_files:
+                file_name = file_info["name"]
+                file_content = file_info["content"]
 
-            with tempfile.NamedTemporaryFile(delete=False, suffix=ext, dir=self.doc_config["temp_dir"]) as tmp_file:
-                tmp_file.write(file_content)
-                tmp_file_path = tmp_file.name
+                ext = os.path.splitext(file_name)[1].lower()
+                if ext not in self.doc_config["supported_extensions"]:
+                    self.logger.warning(f"不支持的文件类型: {file_name}")
+                    continue
 
-            try:
-                qa_data = self.process_file(tmp_file_path, service_name, user_name, current_id)
-                all_qa_data.extend(qa_data)
-                current_id += len(qa_data)
-            finally:
-                if os.path.exists(tmp_file_path):
-                    os.unlink(tmp_file_path)
+                with tempfile.NamedTemporaryFile(delete=False, suffix=ext, dir=self.doc_config["temp_dir"]) as tmp_file:
+                    tmp_file.write(file_content)
+                    tmp_file_path = tmp_file.name
+
+                try:
+                    qa_data = self.process_file(tmp_file_path, service_name, user_name, current_id, file_name, manage_session=False)
+                    all_qa_data.extend(qa_data)
+                    current_id += len(qa_data)
+                finally:
+                    if os.path.exists(tmp_file_path):
+                        os.unlink(tmp_file_path)
+
+        finally:
+            # 结束批量处理追踪会话
+            self.data_tracer.end_session()
 
         return all_qa_data
 
@@ -689,7 +742,7 @@ class DocumentProcessor:
             if not documents:
                 return {"error": f"无法加载文档: {file_path}"}
 
-            text_chunks = self.split_documents(documents, ext=ext)
+            text_chunks = self.split_documents(documents, ext=ext, file_path=file_path)
             
             preview_stats = {
                 "file_path": file_path,

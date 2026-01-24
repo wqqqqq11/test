@@ -3,7 +3,7 @@ from sklearn.cluster import MiniBatchKMeans
 from typing import Dict, List, Any
 from ..utils.common import load_config, setup_logger
 from ..utils.io_utils import DataLoader
-from ..models.models import CLIPEmbedder, QwenLabeler
+from ..models.models import CLIPEmbedder
 from ..repositories.milvus_store import MilvusStore
 from ..utils.metrics import MetricsCollector
 
@@ -15,7 +15,6 @@ class Pipeline:
         
         self.loader = DataLoader(self.config)
         self.embedder = CLIPEmbedder(self.config)
-        self.labeler = QwenLabeler(self.config)
         self.store = MilvusStore(self.config)
         self.metrics = MetricsCollector(self.config)
     
@@ -33,19 +32,14 @@ class Pipeline:
             clusters = self._clustering(records)
             self.logger.info(f"生成了 {len(set(clusters))} 个聚类")
         
-        with self.metrics.track_stage("标签生成"):
-            self.logger.info("阶段3: 生成聚类标签")
-            cluster_labels = self._generate_labels(records, clusters)
-            self.logger.info(f"生成了 {len(cluster_labels)} 个标签")
-        
         with self.metrics.track_stage("向量化"):
-            self.logger.info("阶段4: 文本向量化")
+            self.logger.info("阶段3: 文本向量化")
             vectors = self._vectorize(records)
             self.logger.info(f"生成了 {len(vectors)} 个向量")
         
         with self.metrics.track_stage("数据存储"):
-            self.logger.info("阶段5: 存储到Milvus")
-            self._store_to_milvus(records, clusters, cluster_labels, vectors)
+            self.logger.info("阶段4: 存储到Milvus")
+            self._store_to_milvus(records, clusters, vectors)
             self.logger.info("数据存储完成")
         
         self.logger.info("生成性能报表")
@@ -68,25 +62,11 @@ class Pipeline:
         clusters = kmeans.fit_predict(embeddings)
         return clusters
     
-    def _generate_labels(self, records: List[Dict[str, Any]], clusters: np.ndarray) -> Dict[int, str]:
-        labels = {}
-        unique_clusters = set(clusters)
-        
-        for cluster_id in unique_clusters:
-            cluster_indices = np.where(clusters == cluster_id)[0]
-            samples = [records[i]['text'] for i in cluster_indices[:10]]
-            label = self.labeler.generate_label(samples, cluster_id)
-            labels[cluster_id] = label
-            self.logger.info(f"聚类 {cluster_id}: {label}")
-        
-        return labels
-    
     def _vectorize(self, records: List[Dict[str, Any]]) -> np.ndarray:
-        texts = [r['text'] for r in records]
+        texts = [str(r['raw'].get('question', '')) for r in records]
         return self.embedder.encode(texts)
     
-    def _store_to_milvus(self, records: List[Dict[str, Any]], clusters: np.ndarray, 
-                         cluster_labels: Dict[int, str], vectors: np.ndarray):
+    def _store_to_milvus(self, records: List[Dict[str, Any]], clusters: np.ndarray, vectors: np.ndarray):
         self.store.connect()
         self.store.create_collection(drop_existing=True)
         
@@ -96,7 +76,7 @@ class Pipeline:
             data.append({
                 'id': str(record['id']),
                 'cluster_id': int(clusters[i]),
-                'cluster_label': cluster_labels[int(clusters[i])],
+                'cluster_label': '',
                 'text': record['text'][:65000],
                 'question': str(raw_data.get('question', ''))[:32000],
                 'answer': str(raw_data.get('answer', ''))[:32000],
@@ -105,6 +85,7 @@ class Pipeline:
                 'question_time': str(raw_data.get('question_time', ''))[:64],
                 'data': str(raw_data.get('data', ''))[:64],
                 'image_url': str(raw_data.get('image_url', ''))[:2048],
+                'category': str(raw_data.get('category', ''))[:256],
                 'vector': vectors[i]
             })
         

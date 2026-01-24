@@ -37,16 +37,25 @@ class QwenLabeler:
     def generate_label(self, samples: List[str], cluster_id: int) -> str:
         sample_text = '\n'.join([f"- {s[:200]}" for s in samples[:5]])
         
-        prompt = f"""以下是聚类 {cluster_id} 的样本文本，请为这个聚类生成一个简洁的中文标签（3-8个字）：
+#         prompt = f"""以下是聚类 {cluster_id} 的样本文本，请为这个聚类生成一个简洁的中文标签（3-8个字）：
 
-{sample_text}
+# {sample_text}
 
-要求：
-1. 标签要准确概括主题
-2. 使用中文
-3. 简洁明了
+# 要求：
+# 1. 标签要准确概括主题
+# 2. 使用中文
+# 3. 简洁明了
 
-标签："""
+# 标签："""
+        prompt = f"""以下是聚类 {cluster_id} 的样本文本，请为这个聚类生成一个简洁的中文标签：
+
+        {sample_text}
+
+        要求：
+        1. 重要：固定只生成"功能咨询"和"品类咨询"两个标签！
+        2. 使用中文
+
+        标签："""
         
         response = self.client.chat.completions.create(
             model=self.config['model'],

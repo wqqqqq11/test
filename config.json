@@ -1,11 +1,11 @@
 {
   "data": {
-    "input_csv": "data/raw_qa.csv",
+    "input_csv": "data/AI销售_20260123_184242.csv",
     "text_columns": ["question", "answer"],
     "id_column": "ID"
   },
   "clustering": {
-    "n_clusters": 30,
+    "n_clusters": 2,
     "batch_size": 5000,
     "max_iter": 50,
     "random_state": 42

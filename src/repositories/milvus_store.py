@@ -35,6 +35,7 @@ class MilvusStore:
             FieldSchema(name="question_time", dtype=DataType.VARCHAR, max_length=64),
             FieldSchema(name="data", dtype=DataType.VARCHAR, max_length=64),
             FieldSchema(name="image_url", dtype=DataType.VARCHAR, max_length=2048),
+            FieldSchema(name="category", dtype=DataType.VARCHAR, max_length=256),
             FieldSchema(name="vector", dtype=DataType.FLOAT_VECTOR, dim=self.config['dimension'])
         ]
         
@@ -63,6 +64,7 @@ class MilvusStore:
                 [item.get('question_time', '') for item in batch],
                 [item.get('data', '') for item in batch],
                 [item.get('image_url', '') for item in batch],
+                [item.get('category', '') for item in batch],
                 [item['vector'].tolist() for item in batch]
             ]
             self.collection.insert(entities)
@@ -98,6 +100,7 @@ class MilvusStore:
                     "question_time": hit.entity.get('question_time', ''),
                     "data": hit.entity.get('data', ''),
                     "image_url": hit.entity.get('image_url', ''),
+                    "category": hit.entity.get('category', ''),
                     "score": float(hit.score)
                 })
         

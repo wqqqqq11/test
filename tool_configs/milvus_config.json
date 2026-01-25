@@ -1,0 +1,88 @@
+{
+  "fields": [
+    {
+      "name": "id",
+      "dtype": "VARCHAR",
+      "max_length": 256,
+      "is_primary": true,
+      "source_field": "id",
+      "required": true
+    },
+    {
+      "name": "question",
+      "dtype": "VARCHAR",
+      "max_length": 32768,
+      "source_field": "question",
+      "max_source_length": 32000,
+      "default_value": "",
+      "required": false
+    },
+    {
+      "name": "answer",
+      "dtype": "VARCHAR",
+      "max_length": 32768,
+      "source_field": "answer",
+      "max_source_length": 32000,
+      "default_value": "",
+      "required": false
+    },
+    {
+      "name": "service_name",
+      "dtype": "VARCHAR",
+      "max_length": 256,
+      "source_field": "service_name",
+      "max_source_length": 256,
+      "default_value": "",
+      "required": false
+    },
+    {
+      "name": "user_name",
+      "dtype": "VARCHAR",
+      "max_length": 256,
+      "source_field": "user_name",
+      "max_source_length": 256,
+      "default_value": "",
+      "required": false
+    },
+    {
+      "name": "question_time",
+      "dtype": "VARCHAR",
+      "max_length": 64,
+      "source_field": "question_time",
+      "max_source_length": 64,
+      "default_value": "",
+      "required": false
+    },
+    {
+      "name": "date",
+      "dtype": "VARCHAR",
+      "max_length": 64,
+      "source_field": "data",
+      "max_source_length": 64,
+      "default_value": "",
+      "required": false
+    },
+    {
+      "name": "image_url",
+      "dtype": "VARCHAR",
+      "max_length": 2048,
+      "source_field": "image_url",
+      "max_source_length": 2048,
+      "default_value": "",
+      "required": false
+    },
+    {
+      "name": "category",
+      "dtype": "VARCHAR",
+      "max_length": 20,
+      "source_field": "category",
+      "max_source_length": 20,
+      "default_value": "",
+      "required": false
+    }
+  ],
+  "vector_field": {
+    "name": "vector",
+    "dtype": "FLOAT_VECTOR"
+  }
+}

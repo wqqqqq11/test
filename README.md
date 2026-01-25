@@ -125,6 +125,10 @@ curl -X POST http://localhost:8000/process-files \
 docker-compose up service
 ```
 
+```bash
+docker-compose run app python3 -m src.core.pipeline
+```
+
 ## API使用
 
 ### 健康检查
@@ -161,6 +165,23 @@ curl -X POST http://localhost:8000/query \
                     "similarity_score": 92.53,
                     "question": "这个手机价格多少钱？",
                     "answer": "哪一款呢亲爱哒~\n112800元的哦",
+                    "image_url": "https://..."
+                },
+                {
+                    "similarity_score": 92,
+                    "question": "xxx",
+                    "answer": "xxx",
+                    "image_url": "https://..."
+                }
+            ]
+        }，
+        {
+            "category_name": "其他定制",
+            "items": [
+                {
+                    "similarity_score": 92.53,
+                    "question": "x'x'xxxx",
+                    "answer": "x'x'x'xxxxx",
                     "image_url": "https://..."
                 }
             ]

@@ -1,5 +1,6 @@
 import numpy as np
-from sklearn.cluster import MiniBatchKMeans
+import json
+import os
 from typing import Dict, List, Any
 from ..utils.common import load_config, setup_logger
 from ..utils.io_utils import DataLoader
@@ -12,6 +13,17 @@ class Pipeline:
     def __init__(self, config_path: str = "config.json"):
         self.config = load_config(config_path)
         self.logger = setup_logger("Pipeline", self.config)
+        
+        # 加载字段配置
+        config_path_milvus = self.config.get('milvus', {}).get('milvus_config_path', 'tool_configs/milvus_config.json')
+        if os.path.exists(config_path_milvus):
+            with open(config_path_milvus, 'r', encoding='utf-8') as f:
+                self.field_config = json.load(f)
+        else:
+            self.field_config = {"fields": [], "vector_field": {"name": "vector"}}
+        
+        self.fields_config = {field['name']: field for field in self.field_config.get('fields', [])}
+        self.vector_field_name = self.field_config.get('vector_field', {}).get('name', 'vector')
         
         self.loader = DataLoader(self.config)
         self.embedder = CLIPEmbedder(self.config)
@@ -27,19 +39,14 @@ class Pipeline:
             records = self.loader.prepare_data(df)
             self.logger.info(f"加载了 {len(records)} 条记录")
         
-        with self.metrics.track_stage("聚类分析"):
-            self.logger.info("阶段2: 聚类分析")
-            clusters = self._clustering(records)
-            self.logger.info(f"生成了 {len(set(clusters))} 个聚类")
-        
         with self.metrics.track_stage("向量化"):
-            self.logger.info("阶段3: 文本向量化")
+            self.logger.info("阶段2: 文本向量化")
             vectors = self._vectorize(records)
             self.logger.info(f"生成了 {len(vectors)} 个向量")
         
         with self.metrics.track_stage("数据存储"):
-            self.logger.info("阶段4: 存储到Milvus")
-            self._store_to_milvus(records, clusters, vectors)
+            self.logger.info("阶段3: 存储到Milvus")
+            self._store_to_milvus(records, vectors)
             self.logger.info("数据存储完成")
         
         self.logger.info("生成性能报表")
@@ -48,46 +55,57 @@ class Pipeline:
         
         return report
     
-    def _clustering(self, records: List[Dict[str, Any]]) -> np.ndarray:
-        texts = [r['text'] for r in records]
-        embeddings = self.embedder.encode(texts)
-        
-        kmeans = MiniBatchKMeans(
-            n_clusters=self.config['clustering']['n_clusters'],
-            batch_size=self.config['clustering']['batch_size'],
-            max_iter=self.config['clustering']['max_iter'],
-            random_state=self.config['clustering']['random_state']
-        )
-        
-        clusters = kmeans.fit_predict(embeddings)
-        return clusters
-    
     def _vectorize(self, records: List[Dict[str, Any]]) -> np.ndarray:
         texts = [str(r['raw'].get('question', '')) for r in records]
         return self.embedder.encode(texts)
     
-    def _store_to_milvus(self, records: List[Dict[str, Any]], clusters: np.ndarray, vectors: np.ndarray):
+    def _get_field_value(self, field_config: Dict[str, Any], record: Dict[str, Any], raw_data: Dict[str, Any]) -> Any:
+        """根据字段配置获取值"""
+        source_field = field_config.get('source_field', field_config['name'])
+        default_value = field_config.get('default_value', '')
+        max_length = field_config.get('max_source_length')
+        
+        # 优先从raw_data获取，其次从record获取
+        if source_field in raw_data:
+            value = raw_data[source_field]
+        elif source_field in record:
+            value = record[source_field]
+        else:
+            value = default_value
+        
+        # 转换为字符串并截断
+        value_str = str(value) if value is not None else ''
+        if max_length and len(value_str) > max_length:
+            value_str = value_str[:max_length]
+        
+        # 根据字段类型转换
+        dtype = field_config.get('dtype', 'VARCHAR')
+        if dtype == 'INT64':
+            try:
+                return int(value_str) if value_str else int(default_value) if default_value else 0
+            except (ValueError, TypeError):
+                return int(default_value) if default_value else 0
+        
+        return value_str
+    
+    def _store_to_milvus(self, records: List[Dict[str, Any]], vectors: np.ndarray):
         self.store.connect()
         self.store.create_collection(drop_existing=True)
         
         data = []
         for i, record in enumerate(records):
             raw_data = record.get('raw', {})
-            data.append({
-                'id': str(record['id']),
-                'cluster_id': int(clusters[i]),
-                'cluster_label': '',
-                'text': record['text'][:65000],
-                'question': str(raw_data.get('question', ''))[:32000],
-                'answer': str(raw_data.get('answer', ''))[:32000],
-                'service_name': str(raw_data.get('service_name', ''))[:256],
-                'user_name': str(raw_data.get('user_name', ''))[:256],
-                'question_time': str(raw_data.get('question_time', ''))[:64],
-                'data': str(raw_data.get('data', ''))[:64],
-                'image_url': str(raw_data.get('image_url', ''))[:2048],
-                'category': str(raw_data.get('category', ''))[:256],
-                'vector': vectors[i]
-            })
+            item = {}
+            
+            # 根据字段配置动态构建数据
+            for field_config in self.field_config.get('fields', []):
+                field_name = field_config['name']
+                item[field_name] = self._get_field_value(field_config, record, raw_data)
+            
+            # 添加向量字段
+            item[self.vector_field_name] = vectors[i]
+            
+            data.append(item)
         
         self.store.insert(data)
         self.store.load()

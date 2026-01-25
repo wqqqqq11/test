@@ -29,7 +29,6 @@ class QueryResultItem(BaseModel):
     question: str
     answer: str
     image_url: str
-    category: str
 
 class CategoryItem(BaseModel):
     category_name: str
@@ -88,7 +87,9 @@ async def query(request: QueryRequest):
         # 按类别分组结果
         category_dict = {}
         for result in results:
-            cluster_label = result.get('cluster_label', '未分类')
+            category = result.get('category', '未分类')
+            if not category or category.strip() == '':
+                category = '未分类'
             
             # 将相似度分数转换为百分比格式
             similarity_score = round(result['score'] * 100, 2)
@@ -97,13 +98,12 @@ async def query(request: QueryRequest):
                 similarity_score=similarity_score,
                 question=result.get('question', ''),
                 answer=result.get('answer', ''),
-                image_url=result.get('image_url', ''),
-                category=result.get('category', '')
+                image_url=result.get('image_url', '')
             )
             
-            if cluster_label not in category_dict:
-                category_dict[cluster_label] = []
-            category_dict[cluster_label].append(query_item)
+            if category not in category_dict:
+                category_dict[category] = []
+            category_dict[category].append(query_item)
         
         # 转换为数组格式
         categories = []

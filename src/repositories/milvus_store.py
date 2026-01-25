@@ -1,12 +1,30 @@
 from pymilvus import connections, Collection, FieldSchema, CollectionSchema, DataType, utility
 import numpy as np
+import json
+import os
 from typing import Dict, List, Any, Tuple
+from ..utils.common import load_config
 
 
 class MilvusStore:
     def __init__(self, config: Dict[str, Any]):
         self.config = config['milvus']
         self.collection = None
+        
+        # 加载字段配置
+        config_path = self.config.get('milvus_config_path', 'tool_configs/milvus_config.json')
+        if os.path.exists(config_path):
+            with open(config_path, 'r', encoding='utf-8') as f:
+                self.field_config = json.load(f)
+        else:
+            # 默认配置
+            self.field_config = {
+                "fields": [],
+                "vector_field": {"name": "vector", "dtype": "FLOAT_VECTOR"}
+            }
+        
+        self.fields_config = {field['name']: field for field in self.field_config.get('fields', [])}
+        self.vector_field_name = self.field_config.get('vector_field', {}).get('name', 'vector')
     
     def connect(self):
         connections.connect(
@@ -15,29 +33,58 @@ class MilvusStore:
             port=self.config['port']
         )
     
+    def _get_field_schema(self, field_config: Dict[str, Any]) -> FieldSchema:
+        """根据配置创建字段schema"""
+        dtype_map = {
+            "VARCHAR": DataType.VARCHAR,
+            "INT64": DataType.INT64,
+            "INT32": DataType.INT32,
+            "FLOAT": DataType.FLOAT,
+            "DOUBLE": DataType.DOUBLE,
+            "BOOL": DataType.BOOL,
+            "FLOAT_VECTOR": DataType.FLOAT_VECTOR
+        }
+        
+        dtype = dtype_map.get(field_config['dtype'], DataType.VARCHAR)
+        kwargs = {"name": field_config['name'], "dtype": dtype}
+        
+        if dtype == DataType.VARCHAR:
+            kwargs["max_length"] = field_config.get('max_length', 65535)
+        
+        if field_config.get('is_primary', False):
+            kwargs["is_primary"] = True
+        
+        if dtype == DataType.FLOAT_VECTOR:
+            kwargs["dim"] = self.config['dimension']
+        
+        return FieldSchema(**kwargs)
+    
     def create_collection(self, drop_existing: bool = False):
         if drop_existing and utility.has_collection(self.config['collection_name']):
-            utility.drop_collection(self.config['collection_name'])
+            try:
+                utility.drop_collection(self.config['collection_name'])
+            except Exception as e:
+                # 忽略删除失败的错误，继续执行
+                pass
         
         if utility.has_collection(self.config['collection_name']):
             self.collection = Collection(self.config['collection_name'])
             return
         
-        fields = [
-            FieldSchema(name="id", dtype=DataType.VARCHAR, max_length=256, is_primary=True),
-            FieldSchema(name="cluster_id", dtype=DataType.INT64),
-            FieldSchema(name="cluster_label", dtype=DataType.VARCHAR, max_length=512),
-            FieldSchema(name="text", dtype=DataType.VARCHAR, max_length=65535),
-            FieldSchema(name="question", dtype=DataType.VARCHAR, max_length=32768),
-            FieldSchema(name="answer", dtype=DataType.VARCHAR, max_length=32768),
-            FieldSchema(name="service_name", dtype=DataType.VARCHAR, max_length=256),
-            FieldSchema(name="user_name", dtype=DataType.VARCHAR, max_length=256),
-            FieldSchema(name="question_time", dtype=DataType.VARCHAR, max_length=64),
-            FieldSchema(name="data", dtype=DataType.VARCHAR, max_length=64),
-            FieldSchema(name="image_url", dtype=DataType.VARCHAR, max_length=2048),
-            FieldSchema(name="category", dtype=DataType.VARCHAR, max_length=256),
-            FieldSchema(name="vector", dtype=DataType.FLOAT_VECTOR, dim=self.config['dimension'])
-        ]
+        # 根据配置动态创建字段
+        fields = []
+        for field_config in self.field_config.get('fields', []):
+            fields.append(self._get_field_schema(field_config))
+        
+        # 添加向量字段
+        vector_config = self.field_config.get('vector_field', {})
+        if vector_config:
+            vector_field = FieldSchema(
+                name=vector_config['name'],
+                dtype=DataType.FLOAT_VECTOR,
+                dim=self.config['dimension']
+            )
+            fields.append(vector_field)
         
         schema = CollectionSchema(fields=fields, description="Multilingual vectors")
         self.collection = Collection(name=self.config['collection_name'], schema=schema)
@@ -47,26 +94,32 @@ class MilvusStore:
             "metric_type": self.config['metric_type'],
             "params": {"nlist": self.config['nlist']}
         }
-        self.collection.create_index(field_name="vector", index_params=index_params)
+        self.collection.create_index(field_name=self.vector_field_name, index_params=index_params)
     
     def insert(self, data: List[Dict[str, Any]], batch_size: int = 1000):
+        """根据字段配置动态插入数据"""
+        # 获取所有字段名（按配置顺序）
+        field_names = [field['name'] for field in self.field_config.get('fields', [])]
+        field_names.append(self.vector_field_name)
+        
         for i in range(0, len(data), batch_size):
             batch = data[i:i + batch_size]
-            entities = [
-                [item['id'] for item in batch],
-                [item['cluster_id'] for item in batch],
-                [item['cluster_label'] for item in batch],
-                [item['text'] for item in batch],
-                [item.get('question', '') for item in batch],
-                [item.get('answer', '') for item in batch],
-                [item.get('service_name', '') for item in batch],
-                [item.get('user_name', '') for item in batch],
-                [item.get('question_time', '') for item in batch],
-                [item.get('data', '') for item in batch],
-                [item.get('image_url', '') for item in batch],
-                [item.get('category', '') for item in batch],
-                [item['vector'].tolist() for item in batch]
-            ]
+            entities = []
+            
+            # 按字段配置顺序构建数据
+            for field_config in self.field_config.get('fields', []):
+                field_name = field_config['name']
+                default_value = field_config.get('default_value', '')
+                entities.append([
+                    item.get(field_name, default_value) for item in batch
+                ])
+            
+            # 添加向量字段
+            entities.append([
+                item.get(self.vector_field_name).tolist() if hasattr(item.get(self.vector_field_name), 'tolist') 
+                else item.get(self.vector_field_name) for item in batch
+            ])
+            
             self.collection.insert(entities)
         self.collection.flush()
     
@@ -77,32 +130,27 @@ class MilvusStore:
         nprobe = self.config.get('nprobe', 64)
         search_params = {"metric_type": self.config['metric_type'], "params": {"nprobe": nprobe}}
         
+        # 获取所有需要输出的字段名
+        output_fields = [field['name'] for field in self.field_config.get('fields', [])]
+        
         results = self.collection.search(
             data=[query_vector.tolist()],
-            anns_field="vector",
+            anns_field=self.vector_field_name,
             param=search_params,
             limit=top_k,
-            output_fields=["id", "cluster_id", "cluster_label", "text", "question", "answer", "service_name", "user_name", "question_time", "data", "image_url"]
+            output_fields=output_fields
         )
         
         output = []
         for hits in results:
             for hit in hits:
-                output.append({
-                    "id": hit.entity.get('id'),
-                    "cluster_id": hit.entity.get('cluster_id'),
-                    "cluster_label": hit.entity.get('cluster_label'),
-                    "text": hit.entity.get('text'),
-                    "question": hit.entity.get('question', ''),
-                    "answer": hit.entity.get('answer', ''),
-                    "service_name": hit.entity.get('service_name', ''),
-                    "user_name": hit.entity.get('user_name', ''),
-                    "question_time": hit.entity.get('question_time', ''),
-                    "data": hit.entity.get('data', ''),
-                    "image_url": hit.entity.get('image_url', ''),
-                    "category": hit.entity.get('category', ''),
-                    "score": float(hit.score)
-                })
+                result_item = {"score": float(hit.score)}
+                # 动态获取所有字段
+                for field_config in self.field_config.get('fields', []):
+                    field_name = field_config['name']
+                    default_value = field_config.get('default_value', '')
+                    result_item[field_name] = hit.entity.get(field_name, default_value)
+                output.append(result_item)
         
         return output
     

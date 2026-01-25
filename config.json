@@ -56,7 +56,8 @@
     "index_type": "IVF_FLAT",
     "metric_type": "COSINE",
     "nlist": 1024,
-    "nprobe": 64
+    "nprobe": 64,
+    "milvus_config_path": "tool_configs/milvus_config.json"
   },
   "service": {
     "host": "0.0.0.0",

@@ -70,15 +70,6 @@
       "max_source_length": 2048,
       "default_value": "",
       "required": false
-    },
-    {
-      "name": "category",
-      "dtype": "VARCHAR",
-      "max_length": 20,
-      "source_field": "category",
-      "max_source_length": 20,
-      "default_value": "",
-      "required": false
     }
   ],
   "vector_field": {

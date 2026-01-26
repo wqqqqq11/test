@@ -19,9 +19,10 @@ wheels/
 .installed.cfg
 *.egg
 
-outputs/*.json
-outputs/*.html
+outputs/
 !outputs/.gitkeep
+
+test_data/
 
 .env
 .venv

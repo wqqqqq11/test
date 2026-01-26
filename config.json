@@ -1,6 +1,6 @@
 {
   "data": {
-    "input_csv": "data/AI销售_20260123_184242.csv",
+    "input_csv": "test_data/AI销售_测试1_20260126_102243.csv",
     "text_columns": ["question", "answer"],
     "id_column": "ID"
   },
@@ -28,7 +28,9 @@
     "enable_qa_validation": true,
     "validation_batch_size": 10,
     "header_lines": 3,
-    "footer_lines": 3
+    "footer_lines": 3,
+    "max_workers_chunk": 20,
+    "max_workers_file": 3
   },
   "trace": {
     "enable_tracing": true,
@@ -44,7 +46,7 @@
     }
   },
   "clip": {
-    "model_name": "paraphrase-multilingual-MiniLM-L12-v2",
+    "model_name": "BAAI/bge-large-zh-v1.5",
     "batch_size": 128,
     "device": "cuda"
   },
@@ -52,7 +54,7 @@
     "host": "milvus-standalone",
     "port": 19530,
     "collection_name": "multilingual_vectors",
-    "dimension": 384,
+    "dimension": 1024,
     "index_type": "IVF_FLAT",
     "metric_type": "COSINE",
     "nlist": 1024,

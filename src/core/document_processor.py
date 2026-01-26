@@ -2,9 +2,11 @@ import os
 import re
 import tempfile
 import csv
+import threading
 from collections import Counter
 from typing import List, Dict, Any, Tuple, Optional
 from datetime import datetime
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from openai import OpenAI
 from langchain_core.documents import Document
@@ -133,6 +135,14 @@ class DocumentProcessor:
         self.max_digit_ratio = float(self.doc_config.get("max_digit_ratio", 0.45))
         self.max_punct_ratio = float(self.doc_config.get("max_punct_ratio", 0.55))
         self.keyword_min_hits = int(self.doc_config.get("keyword_min_hits", 1))
+
+        # 多线程配置
+        self.max_workers_chunk = int(self.doc_config.get("max_workers_chunk", 5))  # chunk并行处理线程数
+        self.max_workers_file = int(self.doc_config.get("max_workers_file", 3))    # 文件并行处理线程数
+        
+        # 线程安全的ID分配器
+        self._id_lock = threading.Lock()
+        self._current_id = 1
 
         # 销售场景：问题类型配额（可在 config 中调）
         self.sales_question_types = self.doc_config.get(
@@ -565,6 +575,84 @@ class DocumentProcessor:
             return []
 
     # -----------------------------
+    # 多线程辅助方法
+    # -----------------------------
+    def _get_next_id(self, count: int = 1) -> int:
+        """线程安全地获取下一个ID"""
+        with self._id_lock:
+            start_id = self._current_id
+            self._current_id += count
+            return start_id
+
+    def _process_chunk_with_context(
+        self,
+        chunk: Document,
+        chunk_index: int,
+        trace_name: str,
+        service_name: str,
+        user_name: str,
+        current_time: str,
+        current_date: str,
+        start_id: int,
+    ) -> List[Dict[str, Any]]:
+        """
+        处理单个chunk并返回QA数据（用于多线程处理）
+        
+        Args:
+            chunk: 文本块
+            chunk_index: chunk索引（用于日志）
+            trace_name: 追踪名称
+            service_name: 服务名称
+            user_name: 用户名称
+            current_time: 当前时间字符串
+            current_date: 当前日期字符串
+            start_id: 起始ID
+            
+        Returns:
+            QA数据列表
+        """
+        qa_data_list: List[Dict[str, Any]] = []
+        
+        try:
+            # 生成QA对
+            qa_pairs = self.generate_qa_pairs(chunk)
+            if not qa_pairs:
+                return qa_data_list
+
+            # 追踪生成的QA对数据
+            self.data_tracer.trace_generated_qa(qa_pairs, chunk.page_content, trace_name)
+
+            # 校验生成的QA对
+            validated_qa_pairs = self.qa_validator.validate_qa_batch(qa_pairs)
+            if not validated_qa_pairs:
+                self.logger.debug(f"文本块 {chunk_index} 生成的所有QA对都未通过校验，跳过")
+                return qa_data_list
+
+            # 追踪校验后的QA对数据
+            self.data_tracer.trace_validated_qa(qa_pairs, validated_qa_pairs, trace_name)
+
+            # 组装QA数据
+            qa_id = start_id
+            for qa_pair in validated_qa_pairs:
+                qa_data = {
+                    "ID": qa_id,
+                    "service_name": service_name,
+                    "user_name": user_name,
+                    "question_time": current_time,
+                    "data": current_date,
+                    "question": qa_pair["question"],
+                    "answer": qa_pair["answer"],
+                    "image_url": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRVuBc3P2Xjkcux2LzpUDN6dS2vYIngfCGaIwiri8KalXJrH4gw25HwzxqI&s",
+                }
+                qa_data_list.append(qa_data)
+                qa_id += 1
+
+        except Exception as e:
+            self.logger.error(f"处理文本块 {chunk_index} 时出错: {str(e)}")
+        
+        return qa_data_list
+
+    # -----------------------------
     # 主流程
     # -----------------------------
     def process_file(
@@ -594,48 +682,78 @@ class DocumentProcessor:
             text_chunks = self.split_documents(documents, ext=ext, file_path=trace_name)
             self.logger.info(f"文档 {file_path} 已分割成 {len(text_chunks)} 个文本块")
 
-            all_qa_data: List[Dict[str, Any]] = []
+            if not text_chunks:
+                self.logger.warning(f"文档 {file_path} 没有有效的文本块")
+                return []
+
+            # 准备处理参数
             current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             current_date = datetime.now().strftime("%Y-%m-%d")
-
-            qa_id = start_id
             svc = service_name if service_name else "AI销售"
             usr = user_name if user_name else "客户A"
 
-            for chunk in text_chunks:
-                qa_pairs = self.generate_qa_pairs(chunk)
-                if not qa_pairs:
-                    continue
+            # 预先过滤需要处理的chunks（质量门控）
+            valid_chunks = []
+            for idx, chunk in enumerate(text_chunks):
+                chunk_text = chunk.page_content if hasattr(chunk, "page_content") else str(chunk)
+                if self._should_generate_sales_qa(chunk_text):
+                    valid_chunks.append((idx, chunk))
 
-                # 追踪生成的QA对数据
-                self.data_tracer.trace_generated_qa(qa_pairs, chunk.page_content, trace_name)
+            if not valid_chunks:
+                self.logger.info(f"文档 {file_path} 没有通过质量门控的文本块")
+                return []
 
-                # 校验生成的QA对
-                validated_qa_pairs = self.qa_validator.validate_qa_batch(qa_pairs)
-                if not validated_qa_pairs:
-                    self.logger.info(f"该文本块生成的所有QA对都未通过校验，跳过")
-                    continue
+            self.logger.info(f"文档 {file_path} 有 {len(valid_chunks)} 个文本块需要处理，开始并行处理...")
 
-                # 追踪校验后的QA对数据
-                self.data_tracer.trace_validated_qa(qa_pairs, validated_qa_pairs, trace_name)
+            # 使用多线程并行处理chunks
+            all_qa_data: List[Dict[str, Any]] = []
+            current_chunk_id = start_id
+            
+            # 为每个chunk预先分配ID范围（估算，实际可能更少）
+            max_pairs_per_chunk = int(self.doc_config["max_qa_pairs_per_chunk"])
+            chunk_id_ranges = []
+            for idx, (chunk_idx, chunk) in enumerate(valid_chunks):
+                chunk_start_id = current_chunk_id
+                chunk_id_ranges.append((chunk_start_id, max_pairs_per_chunk))
+                current_chunk_id += max_pairs_per_chunk
 
-                for qa_pair in validated_qa_pairs:
-                    qa_data = {
-                        "ID": qa_id,
-                        "service_name": svc,
-                        "user_name": usr,
-                        "question_time": current_time,
-                        "data": current_date,
-                        "question": qa_pair["question"],
-                        "answer": qa_pair["answer"],
-                        "image_url": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRVuBc3P2Xjkcux2LzpUDN6dS2vYIngfCGaIwiri8KalXJrH4gw25HwzxqI&s",
-                    }
-                    all_qa_data.append(qa_data)
-                    qa_id += 1
-                # if qa_id == 1:
-                #     break
+            # 并行处理chunks
+            with ThreadPoolExecutor(max_workers=self.max_workers_chunk) as executor:
+                # 提交所有任务
+                future_to_chunk = {}
+                for (chunk_idx, chunk), (chunk_start_id, _) in zip(valid_chunks, chunk_id_ranges):
+                    future = executor.submit(
+                        self._process_chunk_with_context,
+                        chunk=chunk,
+                        chunk_index=chunk_idx,
+                        trace_name=trace_name,
+                        service_name=svc,
+                        user_name=usr,
+                        current_time=current_time,
+                        current_date=current_date,
+                        start_id=chunk_start_id,
+                    )
+                    future_to_chunk[future] = (chunk_idx, chunk_start_id)
 
-            self.logger.info(f"为文档 {file_path} 生成了 {len(all_qa_data)} 个QA对")
+                # 收集结果
+                completed_count = 0
+                for future in as_completed(future_to_chunk):
+                    chunk_idx, chunk_start_id = future_to_chunk[future]
+                    try:
+                        chunk_qa_data = future.result()
+                        if chunk_qa_data:
+                            all_qa_data.extend(chunk_qa_data)
+                            completed_count += 1
+                    except Exception as e:
+                        self.logger.error(f"处理文本块 {chunk_idx} 时发生异常: {str(e)}")
+
+            # 重新分配ID以确保连续性（因为有些chunk可能没有生成QA对）
+            if all_qa_data:
+                all_qa_data.sort(key=lambda x: x["ID"])  # 按原始ID排序
+                for idx, qa_data in enumerate(all_qa_data, start=start_id):
+                    qa_data["ID"] = idx
+
+            self.logger.info(f"为文档 {file_path} 生成了 {len(all_qa_data)} 个QA对（处理了 {completed_count}/{len(valid_chunks)} 个有效文本块）")
             
             # 结束追踪会话（如果需要）
             if manage_session:
@@ -651,19 +769,78 @@ class DocumentProcessor:
             return []
 
     def process_files(self, file_paths: List[str], service_name: str = "", user_name: str = "") -> List[Dict[str, Any]]:
-        """处理多个文件并生成QA对数据"""
+        """
+        处理多个文件并生成QA对数据（使用多线程并行处理）
+        
+        Args:
+            file_paths: 文件路径列表
+            service_name: 服务名称
+            user_name: 用户名称
+            
+        Returns:
+            所有文件的QA数据列表
+        """
+        if not file_paths:
+            return []
+
+        # 过滤存在的文件
+        valid_files = [fp for fp in file_paths if os.path.exists(fp)]
+        if not valid_files:
+            self.logger.warning("没有找到有效的文件")
+            return []
+
+        # 过滤不存在的文件
+        for file_path in file_paths:
+            if file_path not in valid_files:
+                self.logger.warning(f"文件不存在: {file_path}")
+
+        self.logger.info(f"开始并行处理 {len(valid_files)} 个文件，使用 {self.max_workers_file} 个线程")
+
         all_qa_data: List[Dict[str, Any]] = []
         current_id = 1
 
-        for file_path in file_paths:
-            if not os.path.exists(file_path):
-                self.logger.warning(f"文件不存在: {file_path}")
-                continue
+        # 使用多线程并行处理文件
+        with ThreadPoolExecutor(max_workers=self.max_workers_file) as executor:
+            # 提交所有文件处理任务
+            future_to_file = {}
+            for file_path in valid_files:
+                # 为每个文件分配一个临时起始ID（后续会重新分配）
+                file_start_id = current_id
+                current_id += 10000  # 预留足够大的ID空间，避免冲突
+                
+                future = executor.submit(
+                    self.process_file,
+                    file_path=file_path,
+                    service_name=service_name,
+                    user_name=user_name,
+                    start_id=file_start_id,
+                    display_name="",
+                    manage_session=True,
+                )
+                future_to_file[future] = file_path
 
-            qa_data = self.process_file(file_path, service_name, user_name, current_id)
-            all_qa_data.extend(qa_data)
-            current_id += len(qa_data)
+            # 收集结果
+            completed_count = 0
+            for future in as_completed(future_to_file):
+                file_path = future_to_file[future]
+                try:
+                    file_qa_data = future.result()
+                    if file_qa_data:
+                        all_qa_data.extend(file_qa_data)
+                        completed_count += 1
+                        self.logger.info(f"文件 {file_path} 处理完成，生成 {len(file_qa_data)} 个QA对")
+                    else:
+                        self.logger.warning(f"文件 {file_path} 处理完成，但未生成QA对")
+                except Exception as e:
+                    self.logger.error(f"处理文件 {file_path} 时发生异常: {str(e)}")
 
+        # 重新分配ID以确保连续性
+        if all_qa_data:
+            all_qa_data.sort(key=lambda x: x["ID"])  # 先按原始ID排序
+            for idx, qa_data in enumerate(all_qa_data, start=1):
+                qa_data["ID"] = idx
+
+        self.logger.info(f"所有文件处理完成，共生成 {len(all_qa_data)} 个QA对（成功处理 {completed_count}/{len(valid_files)} 个文件）")
         return all_qa_data
 
     def process_uploaded_files(
@@ -672,34 +849,113 @@ class DocumentProcessor:
         service_name: str = "",
         user_name: str = "",
     ) -> List[Dict[str, Any]]:
-        """处理上传的文件（字节流）并生成QA对数据"""
-        all_qa_data: List[Dict[str, Any]] = []
-        current_id = 1
+        """
+        处理上传的文件（字节流）并生成QA对数据（使用多线程并行处理）
+        
+        Args:
+            uploaded_files: 上传文件列表，每个元素包含 {"name": str, "content": bytes}
+            service_name: 服务名称
+            user_name: 用户名称
+            
+        Returns:
+            所有文件的QA数据列表
+        """
+        if not uploaded_files:
+            return []
 
         # 开始批量处理追踪会话
         self.data_tracer.start_session("process_uploaded_files_batch")
 
-        try:
-            for file_info in uploaded_files:
-                file_name = file_info["name"]
-                file_content = file_info["content"]
+        # 过滤支持的文件类型
+        valid_files = []
+        for file_info in uploaded_files:
+            file_name = file_info["name"]
+            ext = os.path.splitext(file_name)[1].lower()
+            if ext not in self.doc_config["supported_extensions"]:
+                self.logger.warning(f"不支持的文件类型: {file_name}")
+                continue
+            valid_files.append(file_info)
 
+        if not valid_files:
+            self.logger.warning("没有找到支持的文件类型")
+            self.data_tracer.end_session()
+            return []
+
+        self.logger.info(f"开始并行处理 {len(valid_files)} 个上传文件，使用 {self.max_workers_file} 个线程")
+
+        all_qa_data: List[Dict[str, Any]] = []
+        current_id = 1
+
+        def process_single_uploaded_file(file_info: Dict[str, Any], start_id: int) -> Tuple[List[Dict[str, Any]], str]:
+            """处理单个上传文件的辅助函数"""
+            file_name = file_info["name"]
+            file_content = file_info["content"]
+            tmp_file_path = None
+            
+            try:
                 ext = os.path.splitext(file_name)[1].lower()
-                if ext not in self.doc_config["supported_extensions"]:
-                    self.logger.warning(f"不支持的文件类型: {file_name}")
-                    continue
-
+                
+                # 创建临时文件
                 with tempfile.NamedTemporaryFile(delete=False, suffix=ext, dir=self.doc_config["temp_dir"]) as tmp_file:
                     tmp_file.write(file_content)
                     tmp_file_path = tmp_file.name
 
-                try:
-                    qa_data = self.process_file(tmp_file_path, service_name, user_name, current_id, file_name, manage_session=False)
-                    all_qa_data.extend(qa_data)
-                    current_id += len(qa_data)
-                finally:
-                    if os.path.exists(tmp_file_path):
+                # 处理文件
+                qa_data = self.process_file(
+                    tmp_file_path, 
+                    service_name, 
+                    user_name, 
+                    start_id, 
+                    file_name, 
+                    manage_session=False
+                )
+                return qa_data, file_name
+            except Exception as e:
+                self.logger.error(f"处理上传文件 {file_name} 时出错: {str(e)}")
+                return [], file_name
+            finally:
+                # 清理临时文件
+                if tmp_file_path and os.path.exists(tmp_file_path):
+                    try:
                         os.unlink(tmp_file_path)
+                    except Exception as e:
+                        self.logger.warning(f"删除临时文件 {tmp_file_path} 失败: {str(e)}")
+
+        try:
+            # 使用多线程并行处理文件
+            with ThreadPoolExecutor(max_workers=self.max_workers_file) as executor:
+                # 提交所有文件处理任务
+                future_to_file = {}
+                for file_info in valid_files:
+                    # 为每个文件分配一个临时起始ID（后续会重新分配）
+                    file_start_id = current_id
+                    current_id += 10000  # 预留足够大的ID空间，避免冲突
+                    
+                    future = executor.submit(process_single_uploaded_file, file_info, file_start_id)
+                    future_to_file[future] = file_info["name"]
+
+                # 收集结果
+                completed_count = 0
+                for future in as_completed(future_to_file):
+                    file_name = future_to_file[future]
+                    try:
+                        file_qa_data, processed_name = future.result()
+                        if file_qa_data:
+                            all_qa_data.extend(file_qa_data)
+                            completed_count += 1
+                            self.logger.info(f"文件 {processed_name} 处理完成，生成 {len(file_qa_data)} 个QA对")
+                        else:
+                            self.logger.warning(f"文件 {processed_name} 处理完成，但未生成QA对")
+                    except Exception as e:
+                        self.logger.error(f"处理文件 {file_name} 时发生异常: {str(e)}")
+
+            # 重新分配ID以确保连续性
+            if all_qa_data:
+                all_qa_data.sort(key=lambda x: x["ID"])  # 先按原始ID排序
+                for idx, qa_data in enumerate(all_qa_data, start=1):
+                    qa_data["ID"] = idx
+
+            self.logger.info(f"所有上传文件处理完成，共生成 {len(all_qa_data)} 个QA对（成功处理 {completed_count}/{len(valid_files)} 个文件）")
 
         finally:
             # 结束批量处理追踪会话

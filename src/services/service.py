@@ -8,6 +8,7 @@ from ..utils.common import load_config, setup_logger
 from ..models.models import CLIPEmbedder
 from ..repositories.milvus_store import MilvusStore
 from ..core.document_processor import DocumentProcessor
+from .test_services.qas_test_service import QASTestService, TestRequest, TestResponse
 from pymilvus import utility
 
 app = FastAPI(title="多语种向量检索服务")
@@ -17,6 +18,7 @@ logger = setup_logger("Service", config)
 embedder = CLIPEmbedder(config)
 store = MilvusStore(config)
 document_processor = DocumentProcessor(config)
+test_service = QASTestService()
 
 
 class QueryRequest(BaseModel):
@@ -216,6 +218,38 @@ async def process_uploaded_files(
         
     except Exception as e:
         logger.error(f"处理上传文件错误: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/test/run-qa-test", response_model=TestResponse)
+async def run_qa_test(request: TestRequest):
+    """运行QA测试（服务器）"""
+    try:
+        return await test_service.run_test(request)
+    except Exception as e:
+        logger.error(f"QA测试错误: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/test/run-qa-test-upload", response_model=TestResponse)
+async def run_qa_test_with_upload(
+    file: UploadFile = File(...),
+    top_k: Optional[int] = None,
+    recall_k_values: Optional[str] = None
+):
+    """使用上传文件运行QA测试"""
+    try:
+        # 解析recall_k_values参数
+        k_values = None
+        if recall_k_values:
+            try:
+                k_values = [int(k.strip()) for k in recall_k_values.split(',')]
+            except ValueError:
+                raise HTTPException(status_code=400, detail="recall_k_values格式错误，应为逗号分隔的数字")
+        
+        return await test_service.run_test_with_uploaded_file(file, top_k, k_values)
+    except Exception as e:
+        logger.error(f"上传文件QA测试错误: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

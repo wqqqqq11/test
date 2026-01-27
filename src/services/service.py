@@ -3,12 +3,15 @@ from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
 import uvicorn
 import os
+import pandas as pd
+import io
 from datetime import datetime
 from ..utils.common import load_config, setup_logger
 from ..models.models import CLIPEmbedder
 from ..repositories.milvus_store import MilvusStore
 from ..core.document_processor import DocumentProcessor
 from ..core.pipeline import Pipeline
+from ..core.qa_validator import QAValidator
 from .test_services.qas_test_service import QASTestService, TestRequest, TestResponse
 from pymilvus import utility
 
@@ -21,6 +24,7 @@ store = MilvusStore(config)
 document_processor = DocumentProcessor(config)
 pipeline = Pipeline()
 test_service = QASTestService()
+qa_validator = QAValidator(config)
 
 
 class QueryRequest(BaseModel):
@@ -63,6 +67,25 @@ class VectorizeDatasetResponse(BaseModel):
     total_records: int
     duration_seconds: float
     report_path: Optional[str] = None
+
+
+class ValidationItem(BaseModel):
+    row_id: Any
+    question: str
+    answer: str
+    is_valid: bool
+    reason: str
+
+
+class ValidationResponse(BaseModel):
+    success: bool
+    message: str
+    total_count: int
+    valid_count: int
+    invalid_count: int
+    pass_rate: float
+    output_path: Optional[str] = None
+    results: List[ValidationItem]
 
 
 @app.on_event("startup")
@@ -313,6 +336,71 @@ async def vectorize_dataset_upload(
                 os.remove(temp_file_path)
             except:
                 pass
+
+
+@app.post("/validate-qa-pairs", response_model=ValidationResponse)
+async def validate_qa_pairs(file: UploadFile = File(...)):
+    """校验CSV文件中的question和answer字段，删除不合格样本"""
+    if not file.filename.endswith('.csv'):
+        raise HTTPException(status_code=400, detail="仅支持CSV文件")
+    
+    content = await file.read()
+    df = pd.read_csv(io.BytesIO(content), encoding='utf-8-sig')
+    
+    required_columns = ['question', 'answer']
+    missing_columns = [col for col in required_columns if col not in df.columns]
+    if missing_columns:
+        raise HTTPException(status_code=400, detail=f"CSV文件缺少必要字段: {missing_columns}")
+    
+    id_column = 'ID' if 'ID' in df.columns else None
+    results = []
+    valid_indices = []
+    valid_count = 0
+    invalid_count = 0
+    
+    for idx, row in df.iterrows():
+        question = str(row.get('question', '')).strip()
+        answer = str(row.get('answer', '')).strip()
+        row_id = row[id_column] if id_column else idx + 1
+        
+        is_valid, reason = qa_validator.validate_qa_pair(question, answer)
+        
+        if is_valid:
+            valid_count += 1
+            valid_indices.append(idx)
+        else:
+            invalid_count += 1
+        
+        results.append(ValidationItem(
+            row_id=row_id,
+            question=question,
+            answer=answer,
+            is_valid=is_valid,
+            reason=reason
+        ))
+    
+    total_count = len(results)
+    pass_rate = (valid_count / total_count * 100) if total_count > 0 else 0
+    
+    output_path = None
+    if valid_count > 0:
+        valid_df = df.loc[valid_indices].copy()
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        output_dir = os.path.join('data', 'validated_data')
+        os.makedirs(output_dir, exist_ok=True)
+        output_path = os.path.join(output_dir, f"validated_qa_pairs_{timestamp}.csv")
+        valid_df.to_csv(output_path, index=False, encoding='utf-8-sig')
+    
+    return ValidationResponse(
+        success=True,
+        message=f"校验完成，共 {total_count} 条记录，删除 {invalid_count} 条不合格记录",
+        total_count=total_count,
+        valid_count=valid_count,
+        invalid_count=invalid_count,
+        pass_rate=round(pass_rate, 2),
+        output_path=output_path,
+        results=results
+    )
 
 
 def start_service():

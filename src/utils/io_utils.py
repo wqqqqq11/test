@@ -6,8 +6,9 @@ class DataLoader:
     def __init__(self, config: Dict[str, Any]):
         self.config = config['data']
     
-    def load_csv(self) -> pd.DataFrame:
-        df = pd.read_csv(self.config['input_csv'])
+    def load_csv(self, csv_path: str = None) -> pd.DataFrame:
+        path = csv_path or self.config['input_csv']
+        df = pd.read_csv(path)
         df = df.dropna(subset=self.config['text_columns'])
         return df
     

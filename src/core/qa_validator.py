@@ -17,15 +17,13 @@ class QAValidator:
         self.qwen_config = config["qwen"]
         self.logger = setup_logger("QAValidator", config)
         
-        # 使用qwen-flash模型进行校验
         self.client = OpenAI(
             api_key=self.qwen_config["api_key"],
             base_url=self.qwen_config["base_url"],
             timeout=self.qwen_config["timeout"],
         )
         
-        # 校验用的模型（使用更快的flash模型）
-        self.validation_model = "qwen-flash"
+        self.validation_model = "qwen-plus"
         
         # 常见的指代不明确的词汇模式
         self.ambiguous_patterns = [

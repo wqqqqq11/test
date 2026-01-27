@@ -5,6 +5,7 @@ import pandas as pd
 import json
 import os
 from datetime import datetime
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from ...utils.common import load_config, setup_logger
 from ...models.models import CLIPEmbedder
 from ...repositories.milvus_store import MilvusStore
@@ -157,16 +158,22 @@ class QASTestService:
         return result
     
     def _generate_report(self, test_results: List[Dict[str, Any]], 
-                        metrics: Dict[str, float], test_config: Dict[str, Any]) -> str:
+                        metrics: Dict[str, float], test_config: Dict[str, Any],
+                        start_time: datetime, end_time: datetime) -> str:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         report_dir = self.test_config['test']['report_output_dir']
         os.makedirs(report_dir, exist_ok=True)
         
         report_path = os.path.join(report_dir, f"qa_test_report_{timestamp}.json")
         
+        duration_seconds = (end_time - start_time).total_seconds()
+        
         report_data = {
             "test_info": {
                 "timestamp": timestamp,
+                "start_time": start_time.isoformat(),
+                "end_time": end_time.isoformat(),
+                "duration_seconds": round(duration_seconds, 2),
                 "test_data_path": test_config.get('test_csv_path'),
                 "total_queries": len(test_results),
                 "top_k": test_config.get('top_k', self.test_config['vector_search']['top_k'])
@@ -189,9 +196,12 @@ class QASTestService:
     
     async def run_test(self, request: TestRequest) -> TestResponse:
         try:
+            start_time = datetime.now()
+            
             test_csv_path = request.test_csv_path or self.test_config['test_data']['input_csv_path']
             top_k = request.top_k or self.test_config['vector_search']['top_k']
             recall_k_values = request.recall_k_values or self.test_config['test']['recall_k_values']
+            max_workers = self.test_config['test'].get('max_workers', 4)
             
             test_df = self._load_test_data(test_csv_path)
             
@@ -207,18 +217,23 @@ class QASTestService:
                 self.store.load()
             
             test_results = []
-            batch_size = self.test_config['test']['batch_size']
+            progress_interval = self.test_config['test'].get('batch_size', 100)
             
-            self.logger.info(f"开始处理 {len(test_df)} 个查询，批次大小: {batch_size}")
-            
-            for i in range(0, len(test_df), batch_size):
-                batch_df = test_df.iloc[i:i+batch_size]
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                futures = []
+                for _, row in test_df.iterrows():
+                    future = executor.submit(self._process_single_query, row, top_k, recall_k_values)
+                    futures.append(future)
                 
-                for _, row in batch_df.iterrows():
-                    result = self._process_single_query(row, top_k, recall_k_values)
+                completed = 0
+                for future in as_completed(futures):
+                    result = future.result()
                     test_results.append(result)
-                
-                self.logger.info(f"已处理 {min(i+batch_size, len(test_df))}/{len(test_df)} 个查询")
+                    completed += 1
+                    if completed % progress_interval == 0:
+                        self.logger.info(f"已处理 {completed}/{len(test_df)} 个查询")
+            
+            end_time = datetime.now()
             
             metrics = self._calculate_recall_metrics(test_results, recall_k_values)
             exact_matches = sum(1 for result in test_results if result.get('hit_at_1', False))
@@ -229,7 +244,7 @@ class QASTestService:
                 'recall_k_values': recall_k_values
             }
             
-            report_path = self._generate_report(test_results, metrics, test_config_for_report)
+            report_path = self._generate_report(test_results, metrics, test_config_for_report, start_time, end_time)
             
             test_metrics = TestMetrics(
                 recall_at_1=metrics.get('recall_at_1', 0.0),
@@ -239,9 +254,11 @@ class QASTestService:
                 exact_matches=exact_matches
             )
             
+            duration = (end_time - start_time).total_seconds()
+            
             return TestResponse(
                 success=True,
-                message=f"测试完成，处理了 {len(test_results)} 个查询",
+                message=f"测试完成，处理了 {len(test_results)} 个查询，耗时 {duration:.2f} 秒",
                 metrics=test_metrics,
                 report_path=report_path,
                 timestamp=datetime.now().isoformat()

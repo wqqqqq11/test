@@ -65,9 +65,11 @@ class DocumentProcessor:
     # -----------------------------
     # QA质量门控 + 产品关键词门控
     # -----------------------------
-    _RE_ONLY_DIGITS = re.compile(r"^\s*[\d\W_]+\s*$")
+
+    _RE_ONLY_DIGITS = re.compile(r"^\s*\d+(\.\d+)*\s*$")
     _RE_PAGE_NOISE = re.compile(r"^\s*(page|p)\s*\.?\s*\d+\s*$", re.IGNORECASE)
-    _RE_MOSTLY_PUNCT = re.compile(r"^[\W_]+$")
+    _RE_MOSTLY_PUNCT = re.compile(r"^\s*[\W_]+\s*$")
+
 
     def __init__(self, config: Dict[str, Any]):
         self.config = config
@@ -234,46 +236,102 @@ class DocumentProcessor:
             return True
         return False
 
+    # def _looks_like_title_line(
+    #     self,
+    #     line: str,
+    #     prev_blank: bool,
+    #     next_blank: bool,
+    #     typical_len: int = 22,
+    #     max_len: int = 60,
+    # ) -> bool:
+    #     if not line:
+    #         return False
+
+    #     L = len(line)
+    #     if L > max_len:
+    #         return False
+
+    #     if self._RE_BULLET.match(line):
+    #         return False
+
+    #     strong = bool(
+    #         self._RE_NUM_TITLE.match(line)
+    #         or self._RE_CN_SECTION.match(line)
+    #         or self._RE_CN_ENUM.match(line)
+    #     )
+
+    #     punct_cnt = sum(1 for ch in line if ch in self._TITLE_END_PUNCT)
+    #     few_punct = punct_cnt <= 1
+    #     not_sentence_end = (line[-1] not in self._TITLE_END_PUNCT) or (line[-1] in "：:")
+    #     shortish = L <= typical_len or (L <= max_len and few_punct)
+    #     boundary_bonus = prev_blank or next_blank
+
+    #     if strong:
+    #         return True
+
+    #     if shortish and few_punct and not_sentence_end and boundary_bonus:
+    #         return True
+
+    #     if L <= 12 and few_punct and not_sentence_end:
+    #         return True
+
+    #     return False
     def _looks_like_title_line(
-        self,
-        line: str,
-        prev_blank: bool,
-        next_blank: bool,
-        typical_len: int = 22,
-        max_len: int = 60,
-    ) -> bool:
-        if not line:
+            self,
+            line: str,
+            prev_blank: bool,
+            next_blank: bool,
+            typical_len: int = 22,
+            max_len: int = 60,
+        ) -> bool:
+            if not line:
+                return False
+
+            line = line.strip()
+            if not line:
+                return False
+
+            L = len(line)
+            if L > max_len:
+                return False
+
+            # 0) 纯数字：比如 "1" / "12" / "1.2" —— 不要当标题
+            if self._RE_ONLY_DIGITS.match(line):
+                return False
+
+            # 1) 只有符号：比如 "•" / "---" / "·" —— 不要当标题
+            # （用你现有的 _RE_MOSTLY_PUNCT 更宽松，能抓住 "•" 这种）
+            if self._RE_MOSTLY_PUNCT.match(line):
+                return False
+
+            # 2) bullet 行（比如 "• xxx"）不是标题
+            if self._RE_BULLET.match(line):
+                return False
+
+            strong = bool(
+                self._RE_NUM_TITLE.match(line)
+                or self._RE_CN_SECTION.match(line)
+                or self._RE_CN_ENUM.match(line)
+            )
+
+            punct_cnt = sum(1 for ch in line if ch in self._TITLE_END_PUNCT)
+            few_punct = punct_cnt <= 1
+            not_sentence_end = (line[-1] not in self._TITLE_END_PUNCT) or (line[-1] in "：:")
+            shortish = L <= typical_len or (L <= max_len and few_punct)
+            boundary_bonus = prev_blank or next_blank
+
+            if strong:
+                return True
+
+            if shortish and few_punct and not_sentence_end and boundary_bonus:
+                return True
+
+            has_alpha_or_cn = any(("A" <= ch <= "Z") or ("a" <= ch <= "z") or ("\u4e00" <= ch <= "\u9fff") for ch in line)
+            if L <= 12 and few_punct and not_sentence_end and boundary_bonus and has_alpha_or_cn:
+                return True
+
             return False
 
-        L = len(line)
-        if L > max_len:
-            return False
-
-        if self._RE_BULLET.match(line):
-            return False
-
-        strong = bool(
-            self._RE_NUM_TITLE.match(line)
-            or self._RE_CN_SECTION.match(line)
-            or self._RE_CN_ENUM.match(line)
-        )
-
-        punct_cnt = sum(1 for ch in line if ch in self._TITLE_END_PUNCT)
-        few_punct = punct_cnt <= 1
-        not_sentence_end = (line[-1] not in self._TITLE_END_PUNCT) or (line[-1] in "：:")
-        shortish = L <= typical_len or (L <= max_len and few_punct)
-        boundary_bonus = prev_blank or next_blank
-
-        if strong:
-            return True
-
-        if shortish and few_punct and not_sentence_end and boundary_bonus:
-            return True
-
-        if L <= 12 and few_punct and not_sentence_end:
-            return True
-
-        return False
 
     def merge_pages_by_structure(
         self,
@@ -320,6 +378,20 @@ class DocumentProcessor:
             merged.append(Document(page_content=text, metadata=dict(current_meta)))
             current_lines = []
 
+        def find_page_title(lines: List[Tuple[str, bool]], max_check: int = 5) -> Optional[str]:
+            for i, (s, is_blank) in enumerate(lines[:max_check]):
+                if is_blank:
+                    continue
+                prev_is_blank = True
+                next_is_blank = True
+                if i - 1 >= 0:
+                    prev_is_blank = lines[i - 1][1]
+                if i + 1 < len(lines):
+                    next_is_blank = lines[i + 1][1]
+                if self._looks_like_title_line(s, prev_blank=prev_is_blank, next_blank=next_is_blank):
+                    return s
+            return None
+
         for page_idx, raw_lines in enumerate(pages_raw_lines):
             page_num = page_idx + 1
             normalized_for_toc = self._normalize_lines("\n".join(raw_lines))
@@ -346,49 +418,50 @@ class DocumentProcessor:
                     compact.append((s, False))
                     prev_blank = False
 
-            for i, (s, is_blank) in enumerate(compact):
-                if is_blank:
-                    continue
-
-                prev_is_blank = True
-                next_is_blank = True
-                if i - 1 >= 0:
-                    prev_is_blank = compact[i - 1][1]
-                if i + 1 < len(compact):
-                    next_is_blank = compact[i + 1][1]
-
-                if self._looks_like_title_line(s, prev_blank=prev_is_blank, next_blank=next_is_blank):
+            page_title = find_page_title(compact)
+            
+            if page_title:
+                current_title = current_meta.get("section_title")
+                if current_title and current_title.lower() != page_title.lower():
                     if current_lines:
                         flush()
-                        current_meta = {
-                            "section_title": s,
-                            "start_page": page_num,
-                            "end_page": page_num,
-                            "source_pages": [page_num],
-                        }
-                    else:
-                        current_meta["section_title"] = s
-                        current_meta["start_page"] = page_num
-                        current_meta["end_page"] = page_num
-                        if not current_meta.get("source_pages"):
-                            current_meta["source_pages"] = [page_num]
-
-                    current_lines.append(s)
-                    continue
-
-                if not current_lines:
                     current_meta = {
-                        "section_title": current_meta.get("section_title") or "前言",
+                        "section_title": page_title,
                         "start_page": page_num,
                         "end_page": page_num,
                         "source_pages": [page_num],
                     }
+                elif not current_title:
+                    current_meta["section_title"] = page_title
+                    if not current_lines:
+                        current_meta["start_page"] = page_num
+                        current_meta["end_page"] = page_num
+                        current_meta["source_pages"] = [page_num]
+                    else:
+                        current_meta["end_page"] = page_num
+                        if page_num not in current_meta["source_pages"]:
+                            current_meta["source_pages"].append(page_num)
+                else:
+                    current_meta["end_page"] = page_num
+                    if page_num not in current_meta["source_pages"]:
+                        current_meta["source_pages"].append(page_num)
+            else:
+                if not current_lines:
+                    if not current_meta.get("section_title"):
+                        current_meta = {
+                            "section_title": "前言",
+                            "start_page": page_num,
+                            "end_page": page_num,
+                            "source_pages": [page_num],
+                        }
                 else:
                     current_meta["end_page"] = page_num
                     if page_num not in current_meta["source_pages"]:
                         current_meta["source_pages"].append(page_num)
 
-                current_lines.append(s)
+            for s, is_blank in compact:
+                if not is_blank:
+                    current_lines.append(s)
 
         if current_lines:
             flush()

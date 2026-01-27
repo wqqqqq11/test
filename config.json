@@ -1,26 +1,20 @@
 {
   "data": {
-    "input_csv": "test_data/AI销售_测试1_20260126_102243.csv",
+    "input_csv": "test_data/AI销售_测试1_20260126_181612.csv",
     "text_columns": ["question", "answer"],
     "id_column": "ID"
   },
-  "clustering": {
-    "n_clusters": 2,
-    "batch_size": 5000,
-    "max_iter": 50,
-    "random_state": 42
-  },
   "qwen": {
-    "api_key": "sk-79959346b3674d788c6d5ac43f4eb905",
+    "api_key": "sk-b20b054496654e40aac5bd8b6f140071",
     "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
-    "model": "qwen-flash",
+    "model": "qwen3-max",
     "max_retries": 3,
     "timeout": 30
   },
   "document_processing": {
-    "chunk_size": 1000,
-    "chunk_overlap": 350,
-    "max_qa_pairs_per_chunk": 3,
+    "chunk_size": 500,
+    "chunk_overlap": 50,
+    "max_qa_pairs_per_chunk": 10,
     "max_content_length": 4000,
     "output_csv": "data/processed_qa_pairs.csv",
     "temp_dir": "temp",
@@ -35,7 +29,7 @@
   "trace": {
     "enable_tracing": true,
     "trace_dir": "data/trace_data",
-    "sample_size": 5,
+    "sample_size": 30,
     "stages": {
       "raw_documents": true,
       "cleaned_documents": true,
@@ -70,6 +64,11 @@
     "enable_metrics": true,
     "gpu_sample_interval": 1.0,
     "report_format": ["json", "html"]
+  },
+  "vectorization": {
+    "drop_existing": true,
+    "batch_size": 1000,
+    "report_output_dir": "outputs/vectorization_reports"
   },
   "logging": {
     "level": "INFO",

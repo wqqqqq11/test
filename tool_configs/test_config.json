@@ -4,7 +4,8 @@
     "similarity_threshold": 0.0,
     "exact_match_required": true,
     "report_output_dir": "outputs/test_reports",
-    "batch_size": 100
+    "batch_size": 100,
+    "max_workers": 4
   },
   "test_data": {
     "input_csv_path": "test_data/AI销售_测试2_20260126_102243.csv",

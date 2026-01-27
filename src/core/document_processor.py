@@ -705,6 +705,12 @@ class DocumentProcessor:
             self.data_tracer.trace_validated_qa(qa_pairs, validated_qa_pairs, trace_name)
 
             # 组装QA数据
+            # 从 trace_name 提取文件名作为数据来源
+            generate_source = trace_name if trace_name else ""
+            # 如果是完整路径，只取文件名
+            if os.path.sep in generate_source:
+                generate_source = os.path.basename(generate_source)
+            
             qa_id = start_id
             for qa_pair in validated_qa_pairs:
                 qa_data = {
@@ -716,6 +722,7 @@ class DocumentProcessor:
                     "question": qa_pair["question"],
                     "answer": qa_pair["answer"],
                     "image_url": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRVuBc3P2Xjkcux2LzpUDN6dS2vYIngfCGaIwiri8KalXJrH4gw25HwzxqI&s",
+                    "generate_source": generate_source,
                 }
                 qa_data_list.append(qa_data)
                 qa_id += 1
@@ -887,7 +894,7 @@ class DocumentProcessor:
                     service_name=service_name,
                     user_name=user_name,
                     start_id=file_start_id,
-                    display_name="",
+                    display_name=os.path.basename(file_path),
                     manage_session=True,
                 )
                 future_to_file[future] = file_path
@@ -1044,7 +1051,7 @@ class DocumentProcessor:
 
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
 
-        fieldnames = ["ID", "service_name", "user_name", "question_time", "data", "question", "answer", "image_url"]
+        fieldnames = ["ID", "service_name", "user_name", "question_time", "data", "question", "answer", "image_url", "generate_source"]
 
         with open(output_path, "w", newline="", encoding="utf-8-sig") as csvfile:
             writer = csv.DictWriter(csvfile, fieldnames=fieldnames)

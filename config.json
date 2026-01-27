@@ -42,7 +42,8 @@
   "clip": {
     "model_name": "BAAI/bge-large-zh-v1.5",
     "batch_size": 128,
-    "device": "cuda"
+    "device": "cuda",
+    "local_files_only": true
   },
   "milvus": {
     "host": "milvus-standalone",

@@ -24,6 +24,7 @@ ENV NVIDIA_DRIVER_CAPABILITIES=compute,utility
 # 设置模型缓存路径（如果volume未挂载，使用默认路径）
 ENV TRANSFORMERS_CACHE=/root/.cache/huggingface
 ENV HF_HOME=/root/.cache/huggingface
+ENV HF_ENDPOINT=https://hf-mirror.com 
 ENV SENTENCE_TRANSFORMERS_HOME=/root/.cache/torch/sentence_transformers
 
 # CMD ["python3", "-m", "src.pipeline"]

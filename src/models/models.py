@@ -10,7 +10,12 @@ class CLIPEmbedder:
     def __init__(self, config: Dict[str, Any]):
         self.config = config['clip']
         self.device = self.config['device'] if torch.cuda.is_available() else 'cpu'
-        self.model = SentenceTransformer(self.config['model_name'], device=self.device)
+        local_files_only = self.config.get('local_files_only', False)
+        self.model = SentenceTransformer(
+            self.config['model_name'], 
+            device=self.device,
+            local_files_only=local_files_only
+        )
         self.batch_size = self.config['batch_size']
     
     def encode(self, texts: List[str]) -> np.ndarray:

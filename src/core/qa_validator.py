@@ -23,7 +23,7 @@ class QAValidator:
             timeout=self.qwen_config["timeout"],
         )
         
-        self.validation_model = "qwen-plus"
+        self.validation_model = "qwen3-max"
         
         # 常见的指代不明确的词汇模式
         self.ambiguous_patterns = [

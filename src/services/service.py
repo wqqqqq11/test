@@ -13,6 +13,7 @@ from ..core.document_processor import DocumentProcessor
 from ..core.pipeline import Pipeline
 from ..core.qa_validator import QAValidator
 from .test_services.qas_test_service import QASTestService, TestRequest, TestResponse
+from .polish_service import PolishService
 from pymilvus import utility
 
 app = FastAPI(title="多语种向量检索服务")
@@ -25,6 +26,7 @@ document_processor = DocumentProcessor(config)
 pipeline = Pipeline()
 test_service = QASTestService()
 qa_validator = QAValidator(config)
+polish_service = PolishService(config)
 
 
 class QueryRequest(BaseModel):
@@ -87,6 +89,17 @@ class ValidationResponse(BaseModel):
     pass_rate: float
     output_path: Optional[str] = None
     results: List[ValidationItem]
+
+
+class ProcessDocumentWithPolishResponse(BaseModel):
+    success: bool
+    message: str
+    original_qa_count: int
+    polished_qa_count: int
+    vectorized_count: int
+    validated_csv_path: str
+    polished_csv_path: str
+    vectorization_report: Optional[Dict[str, Any]] = None
 
 
 @app.on_event("startup")
@@ -402,6 +415,62 @@ async def validate_qa_pairs(file: UploadFile = File(...)):
         pass_rate=round(pass_rate, 2),
         output_path=output_path,
         results=results
+    )
+
+
+@app.post("/process-document-with-polish", response_model=ProcessDocumentWithPolishResponse)
+async def process_document_with_polish(
+    file: UploadFile = File(...),
+    service_name: str = "",
+    user_name: str = "",
+    is_stream: bool = False,
+    drop_existing: bool = False
+):
+    """处理文档生成润色后的QA对并存入向量数据库"""
+    temp_csv_path = None
+    polished_csv_path = None
+    
+    uploaded_files = [{
+        "name": file.filename,
+        "content": await file.read()
+    }]
+    
+    qa_data = document_processor.process_uploaded_files(
+        uploaded_files=uploaded_files,
+        service_name=service_name,
+        user_name=user_name
+    )
+    
+    if not qa_data:
+        raise HTTPException(status_code=400, detail="未能生成任何QA对")
+    
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    temp_dir = config.get('polish', {}).get('temp_dir', 'temp/polish')
+    os.makedirs(temp_dir, exist_ok=True)
+    
+    validated_csv_path = os.path.join('data', f"validated_qa_{timestamp}.csv")
+    os.makedirs('data', exist_ok=True)
+    document_processor.save_to_csv(qa_data, validated_csv_path)
+    
+    polished_qa_data = await polish_service.polish_qa_pairs(qa_data)
+    
+    polished_csv_path = os.path.join(temp_dir, f"polished_qa_{timestamp}.csv")
+    document_processor.save_to_csv(polished_qa_data, polished_csv_path)
+    
+    vectorization_result = pipeline.vectorize_dataset(polished_csv_path, drop_existing)
+    
+    if temp_csv_path and os.path.exists(temp_csv_path):
+        os.remove(temp_csv_path)
+    
+    return ProcessDocumentWithPolishResponse(
+        success=True,
+        message=f"处理完成，润色后生成 {len(polished_qa_data)} 条QA对",
+        original_qa_count=len(qa_data),
+        polished_qa_count=len(polished_qa_data),
+        vectorized_count=vectorization_result['total_records'],
+        validated_csv_path=validated_csv_path,
+        polished_csv_path=polished_csv_path,
+        vectorization_report=vectorization_result.get('report')
     )
 
 

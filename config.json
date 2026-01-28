@@ -14,7 +14,7 @@
   "document_processing": {
     "chunk_size": 500,
     "chunk_overlap": 50,
-    "max_qa_pairs_per_chunk": 10,
+    "max_qa_pairs_per_chunk": 5,
     "max_content_length": 4000,
     "output_csv": "data/processed_qa_pairs.csv",
     "temp_dir": "temp",
@@ -74,5 +74,11 @@
   "logging": {
     "level": "INFO",
     "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  },
+  "polish": {
+    "base_url": "http://192.168.151.84:8010",
+    "timeout": 60,
+    "temp_dir": "temp/polish",
+    "batch_size": 50
   }
 }

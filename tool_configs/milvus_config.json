@@ -79,6 +79,15 @@
       "max_source_length": 20,
       "default_value": "",
       "required": false
+    },
+    {
+      "name": "generate_source",
+      "dtype": "VARCHAR",
+      "max_length": 256,
+      "source_field": "generate_source",
+      "max_source_length": 256,
+      "default_value": "",
+      "required": false
     }
   ],
   "vector_field": {

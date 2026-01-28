@@ -14,6 +14,8 @@ services:
     command: etcd -advertise-client-urls=http://127.0.0.1:2379 -listen-client-urls http://0.0.0.0:2379 --data-dir /etcd
     networks:
       - milvus
+    restart: unless-stopped
+
 
   minio:
     container_name: milvus-minio
@@ -31,6 +33,8 @@ services:
       retries: 3
     networks:
       - milvus
+    restart: unless-stopped
+
 
   milvus-standalone:
     container_name: milvus-standalone
@@ -49,6 +53,8 @@ services:
       - minio
     networks:
       - milvus
+    restart: unless-stopped
+
 
   app:
     build:
@@ -75,6 +81,8 @@ services:
       - TRANSFORMERS_CACHE=/root/.cache/huggingface  # 明确指定缓存路径
       - HF_HOME=/root/.cache/huggingface
       - HF_ENDPOINT=https://hf-mirror.com  # 使用 Hugging Face 国内镜像源
+    restart: unless-stopped
+
 
   service:
     build:
@@ -103,6 +111,8 @@ services:
       - TRANSFORMERS_CACHE=/root/.cache/huggingface  # 明确指定缓存路径
       - HF_HOME=/root/.cache/huggingface
       - HF_ENDPOINT=https://hf-mirror.com  # 使用 Hugging Face 国内镜像源
+    restart: unless-stopped
+
 
 volumes:
   etcd_data:

@@ -34,6 +34,7 @@ class QueryRequest(BaseModel):
 
 class QueryResultItem(BaseModel):
     similarity_score: float
+    generate_source: Optional[str] = ""
     question: str
     answer: str
     image_url: str
@@ -131,6 +132,7 @@ async def query(request: QueryRequest):
             
             query_item = QueryResultItem(
                 similarity_score=similarity_score,
+                generate_source=result.get('generate_source', ''),
                 question=result.get('question', ''),
                 answer=result.get('answer', ''),
                 image_url=result.get('image_url', '')

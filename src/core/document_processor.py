@@ -93,43 +93,10 @@ class DocumentProcessor:
 
         # 产品聚焦关键词（可在 config 里覆盖/扩展）
         default_keywords = [
-            "IRONFLIP",
-            "AI",
-            "离线",
-            "语言模型",
-            "翻译",
-            "5G",
-            "双模型",
-            "隐私",
-            "安全",
-            "锁屏",
-            "拍照",
-            "屏幕",
-            "外屏",
-            "OLED",
-            "刷新率",
-            "亮度",
-            "摄像头",
-            "录音",
-            "实时",
-            "频段",
-            "通信",
-            "续航",
-            "芯片",
-            "防护",
-            "材质",
-            "工艺",
-            "珐琅",
-            "漆艺",
-            "皮革",
-            "配件",
-            "价格",
-            "售后",
-            "质保",
-            "场景",
-            "对比",
-            "优势",
-        ]
+            "IRONFLIP","AI","离线","语言模型","翻译","5G","双模型","隐私","安全","锁屏","拍照","屏幕","外屏","OLED",
+            "刷新率","亮度","摄像头","录音","实时","频段","通信","续航","芯片","防护","材质","工艺","珐琅","漆艺",
+            "皮革","配件","价格","售后","质保","场景","对比","优势",]
+
         self.product_keywords = set(self.doc_config.get("product_keywords", default_keywords))
 
         # 质量门控参数（可在 config 中覆盖）
@@ -236,46 +203,6 @@ class DocumentProcessor:
             return True
         return False
 
-    # def _looks_like_title_line(
-    #     self,
-    #     line: str,
-    #     prev_blank: bool,
-    #     next_blank: bool,
-    #     typical_len: int = 22,
-    #     max_len: int = 60,
-    # ) -> bool:
-    #     if not line:
-    #         return False
-
-    #     L = len(line)
-    #     if L > max_len:
-    #         return False
-
-    #     if self._RE_BULLET.match(line):
-    #         return False
-
-    #     strong = bool(
-    #         self._RE_NUM_TITLE.match(line)
-    #         or self._RE_CN_SECTION.match(line)
-    #         or self._RE_CN_ENUM.match(line)
-    #     )
-
-    #     punct_cnt = sum(1 for ch in line if ch in self._TITLE_END_PUNCT)
-    #     few_punct = punct_cnt <= 1
-    #     not_sentence_end = (line[-1] not in self._TITLE_END_PUNCT) or (line[-1] in "：:")
-    #     shortish = L <= typical_len or (L <= max_len and few_punct)
-    #     boundary_bonus = prev_blank or next_blank
-
-    #     if strong:
-    #         return True
-
-    #     if shortish and few_punct and not_sentence_end and boundary_bonus:
-    #         return True
-
-    #     if L <= 12 and few_punct and not_sentence_end:
-    #         return True
-
-    #     return False
     def _looks_like_title_line(
             self,
             line: str,
@@ -600,52 +527,48 @@ class DocumentProcessor:
 
         prompt = self._build_sales_prompt(chunk_text=chunk_text, max_pairs=max_pairs, section_title=section_title)
 
-        try:
-            response = self.client.chat.completions.create(
-                model=self.qwen_config["model"],
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0,
-            )
+        response = self.client.chat.completions.create(
+            model=self.qwen_config["model"],
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0,
+        )
 
-            response_text = (response.choices[0].message.content or "").strip()
-            if not response_text:
-                return []
-
-            qa_pairs: List[Dict[str, str]] = []
-            blocks = [b.strip() for b in response_text.split("\n\n") if b.strip()]
-            for block in blocks:
-                # 允许模型多输出空行，但要求必须同时含 Q: 和 A:
-                if "Q:" not in block or "A:" not in block:
-                    continue
-
-                # 优先按 A: 切分
-                parts = block.split("A:", 1)
-                if len(parts) != 2:
-                    continue
-
-                q_part = parts[0]
-                a_part = parts[1]
-
-                question = q_part.replace("Q:", "").strip()
-                answer = a_part.strip()
-
-                # 再次兜底过滤：避免“文本是什么/是否有意义”
-                if not question or not answer:
-                    continue
-                bad_q = ("文本" in question and ("是什么" in question or "有意义" in question)) or ("这段" in question and "讲" in question)
-                if bad_q:
-                    continue
-
-                qa_pairs.append({"question": question, "answer": answer})
-
-                if len(qa_pairs) >= max_pairs:
-                    break
-
-            return qa_pairs
-
-        except Exception as e:
-            self.logger.error(f"生成QA对时出错: {str(e)}")
+        response_text = (response.choices[0].message.content or "").strip()
+        if not response_text:
             return []
+
+        qa_pairs: List[Dict[str, str]] = []
+        blocks = [b.strip() for b in response_text.split("\n\n") if b.strip()]
+        for block in blocks:
+            # 允许模型多输出空行，但要求必须同时含 Q: 和 A:
+            if "Q:" not in block or "A:" not in block:
+                continue
+
+            # 优先按 A: 切分
+            parts = block.split("A:", 1)
+            if len(parts) != 2:
+                continue
+
+            q_part = parts[0]
+            a_part = parts[1]
+
+            question = q_part.replace("Q:", "").strip()
+            answer = a_part.strip()
+
+            # 再次兜底过滤：避免“文本是什么/是否有意义”
+            if not question or not answer:
+                continue
+            bad_q = ("文本" in question and ("是什么" in question or "有意义" in question)) or ("这段" in question and "讲" in question)
+            if bad_q:
+                continue
+
+            qa_pairs.append({"question": question, "answer": answer})
+
+            if len(qa_pairs) >= max_pairs:
+                break
+
+        return qa_pairs
+
 
     # -----------------------------
     # 多线程辅助方法

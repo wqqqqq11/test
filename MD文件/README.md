@@ -1,13 +1,16 @@
-# 多语种向量检索系统
-
-基于聚类分析、自动标注和向量化的多语种数据处理系统，支持GPU加速和性能监控。
+# FAQ生成检索系统
 
 ## 功能特性
 
 - **向量化**: 使用向量化模型进行文本向量化
 - **向量存储**: 将数据存储到Milvus向量数据库
 - **检索服务**: 提供FastAPI接口进行向量检索
+- **测试服务**: 批量进行相似度检索测试（recall@k）
 - **性能监控**: 实时监控GPU、内存使用并生成详细报表
+
+- **非结构化文档生成QAs**: 基于非结构化文档生成校验后的问答对
+- **QAs校验**: 对问答对进行校验
+- **非结构化文档QAs生成校验润色入库自动化**: 一键生成问答对并且入库
 
 ## 系统架构
 
@@ -49,29 +52,7 @@ test/
 
 ## 快速开始
 
-### 1. 准备数据
 
-将CSV文件放置在 `data/input.csv`，确保包含以下列：
-- `id`: 唯一标识符
-- `title`: 标题
-- `description`: 描述
-
-### 2. 配置参数
-
-编辑 `config.json` 调整参数：
-
-```json
-{
-  "clustering": {
-    "n_clusters": 10,
-    "batch_size": 1000
-  },
-  "clip": {
-    "model_name": "clip-ViT-B-32-multilingual-v1",
-    "batch_size": 32
-  }
-}
-```
 
 ### 3. 启动服务
 
@@ -99,13 +80,13 @@ docker-compose up service
 ### 健康检查
 
 ```bash
-curl http://localhost:8000/health
+curl http://localhost:8888/health
 ```
 
 ### 向量检索
 
 ```bash
-curl -X POST http://localhost:8000/query \
+curl -X POST http://localhost:8888/query \
   -H "Content-Type: application/json" \
   -d '{
     "query": "搜索文本",

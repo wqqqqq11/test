@@ -445,8 +445,6 @@ async def process_document_with_polish(
         raise HTTPException(status_code=400, detail="未能生成任何QA对")
     
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    temp_dir = config.get('polish', {}).get('temp_dir', 'temp/polish')
-    os.makedirs(temp_dir, exist_ok=True)
     
     validated_csv_path = os.path.join('data', f"validated_qa_{timestamp}.csv")
     os.makedirs('data', exist_ok=True)
@@ -454,7 +452,8 @@ async def process_document_with_polish(
     
     polished_qa_data = await polish_service.polish_qa_pairs(qa_data)
     
-    polished_csv_path = os.path.join(temp_dir, f"polished_qa_{timestamp}.csv")
+    polished_csv_path = os.path.join('outputs', 'polished_data', f"polished_qa_{timestamp}.csv")
+    os.makedirs(os.path.dirname(polished_csv_path), exist_ok=True)
     document_processor.save_to_csv(polished_qa_data, polished_csv_path)
     
     vectorization_result = pipeline.vectorize_dataset(polished_csv_path, drop_existing)
